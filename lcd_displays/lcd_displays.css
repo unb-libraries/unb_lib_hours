@@ -1,0 +1,55 @@
+
+#lcd-displays a:visited, #lcd-displays a:link, #lcd-displays a:active {
+	color:#757A00;
+	text-decoration:underline;
+}
+
+#lcd-displays dt {
+	font-weight:bold;
+	line-height:120%;
+}
+
+#lcd-displays dt.clark {
+	color:#111111;
+}
+
+#lcd-displays ul.accordion {
+	margin-left:0;
+	padding-left:0;
+	list-style-type:none;
+}
+
+#lcd-displays ul.accordion li {
+	background-image:none;
+	padding-left:0;
+	margin-left:0;
+}
+
+#lcd-displays ul.accordion li a.ac_header {
+	background:none repeat scroll 0 0 #333333;
+	color:#FFFFFF;
+	padding:0.5em;
+}
+
+#lcd-displays ul.accordion a.ac_header {
+	display:block;
+	text-decoration:none;
+}
+
+#announcements, #events { 
+	width:45%;
+	float:left;
+	margin-right:5px;
+}
+
+#announcements dl, #events dl {
+	padding:3px;
+}
+
+#lcd-displays dl.nb {
+	background:none repeat scroll 0 0 #FFFFAA ;
+}
+
+#lcd-displays dl.urg {
+	background:none repeat scroll 0 0 #D296A1;
+}

@@ -1,0 +1,11 @@
+<?php
+
+include_once('policies_procedures_and_forms_feature.features.inc');
+
+function policies_procedures_and_forms_feature_perm() {
+	$perms = array(
+		'access Policies Procedures and Forms Entries'
+	) ;
+	
+	return $perms ;
+}

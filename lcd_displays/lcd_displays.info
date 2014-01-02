@@ -1,0 +1,5 @@
+
+name = LCD Displays
+description = Manages annoucements and events displayed through LCD screens
+package = UNB Library
+core = 6.x

@@ -1,0 +1,402 @@
+<?php
+
+function library_hours_install() {
+	drupal_install_schema('library_hours') ;	
+}
+
+function library_hours_uninstall() {
+	drupal_uninstall_schema('library_hours') ;
+	
+	// TODO Uncomment this peace of code before deploy module
+	$lib_vid = variable_get('library_hours_lib_vocabulary', '') ;
+	$term_vid = variable_get('library_hours_term_vocabulary', '') ;
+	
+	if (!empty($lib_vid)) {
+		taxonomy_del_vocabulary($lib_vid) ;		
+	}
+	
+	if (!empty($term_vid)) {
+		taxonomy_del_vocabulary($term_vid) ;		
+	}
+
+	variable_del ('library_hours_lib_vocabulary') ;
+	variable_del ('library_hours_term_vocabulary') ;
+	
+	# delete all nodes we created
+	$result = db_query("SELECT nid FROM {node} WHERE type='%s'", 'library_hours') ;
+	if ($result && user_access('administer nodes')) {
+		while($n = db_fetch_object($result)) {
+			node_delete($n->nid) ;
+		}
+	}
+}
+
+function library_hours_schema() {
+	
+	$schema['library_hours'] = array(
+		'description' => t("Stores start and end dates for each library hours."),
+		'fields' => array(
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("The library hours node id"),
+			),
+			'startDate' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('Range Start Date'),
+			),
+			'endDate' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('Range End Date'),
+			),
+		),
+		'primary key' => array('nid'),
+		'indexes' => array(
+			'nid' => array('nid')
+		),
+	);
+	
+	$schema['dateranges'] = array(
+		'description' => t("Stores date range for a library hours."),
+		'fields' => array(
+			'did' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => 'Primary Key: Unique Date Range ID.',
+			),
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("The library hours node id"),
+			),
+			'label' => array(
+				'type' => 'text',
+				'not null' => TRUE,
+				'size' => 'small',
+				'description' => t('Label for identify this date range'),
+			),
+			'startDate' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('Range Start Date'),
+			),
+			'endDate' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('Range End Date'),
+			),
+			'hideLabel' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'size' => 'small',
+				'not null' => TRUE,
+				'description' => t('In case we need to hide the label'),
+			),
+			'target' => array(
+				'type' => 'text',
+				'not null' => TRUE,
+				'size' => 'tiny',
+				'description' => t('Contains what module daterange belongs to'),
+			)
+		),
+		'primary key' => array('did'),
+		'unique keys' => array(
+			'did' => array('did')
+		),
+		'indexes' => array(
+			'nid' => array('nid')
+		),
+	);
+	
+	$schema['timeframes'] = array(
+		'description' => t("Stores time frame for date ranges."),
+		'fields' => array(
+			'tid' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => 'Primary Key: Unique Time Frame ID.',
+			),
+			'did' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("Parent date range id"),
+			),
+			'startDay' => array(
+				'type' => 'varchar',
+				'length' => 3,
+				'not null' => TRUE,
+				'description' => t('Start Day'),
+			),
+			'endDay' => array(
+				'type' => 'varchar',
+				'length' => 3,
+				'not null' => TRUE,
+				'description' => t('End Day'),
+			),
+			'startTime' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('Start Time'),
+			),
+			'endTime' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('End Time'),
+			),
+			'altText' => array(
+				'type' => 'text',
+				'size' => 'small',
+				'not null' => TRUE,
+				'description' => t('Alternate Text'),
+			),
+			'isClosed' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'size' => 'small',
+				'not null' => TRUE,
+				'description' => t('Specifies closed days'),
+			),
+		),
+		'primary key' => array('tid'),
+		'unique keys' => array(
+			'tid' => array('tid')
+		),
+		'indexes' => array(
+			'did' => array('did')
+		),
+	);
+	
+	$schema['holidays'] = array(
+		'description' => t("Stores start and end dates for each library hours."),
+		'fields' => array(
+			'hid' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t("Holiday ID"),
+			),
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("The library hours node id"),
+			),
+			'label' => array(
+				'type' => 'text',
+				'size' => 'small',
+				'not null' => TRUE,
+				'description' => t('Holiday Name'),
+			),
+			'date' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('Holiday Date'),
+			),
+		),
+		'primary key' => array('hid'),
+		'unique keys' => array(
+			'hid' => array('hid')
+		),
+		'indexes' => array(
+			'nid' => array('nid')
+		),
+	);
+	
+	$schema['library_hours_access'] = array(
+		'description' => t("Stores custom access to library hours."),
+		'fields' => array(
+			'id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t("Access ID"),
+			),
+			'tid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("Term ID for library vocabulary"),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("User ID"),
+			),
+		),
+		'primary key' => array('id'),
+		'unique keys' => array(
+			'id' => array('id')
+		),
+		'indexes' => array(
+			'tid' => array('tid')
+		),
+	);
+	
+	$schema['library_hours_library_notices'] = array(
+		'description' => t("Links banner notice to affected libraries."),
+		'fields' => array(
+			'id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t("Primary key"),
+			),
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("The banner notice node id"),
+			),
+			'tid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("Library ID in vocabulary"),
+			),
+			'tfid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Used by banner noticed and contains the id of the library related time frame'),
+			)
+		),
+		'primary key' => array('id'),
+		'unique keys' => array(
+			'id' => array('id')
+		),
+		'indexes' => array(
+			'nid' => array('nid')
+		),
+	);
+	
+	return $schema ;
+}
+
+
+function library_hours_update_6000() {
+	$schema['library_hours_access'] = array(
+		'description' => t("Stores custom access to library hours."),
+		'fields' => array(
+			'id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t("Access ID"),
+			),
+			'tid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("Term ID for library vocabulary"),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("User ID"),
+			),
+		),
+		'primary key' => array('id'),
+		'unique keys' => array(
+			'id' => array('id')
+		),
+		'indexes' => array(
+			'tid' => array('tid')
+		),
+	);
+	
+	$ret = array() ;
+	
+	if (!db_table_exists('library_hours_access')) {
+		db_create_table($ret, 'library_hours_access', $schema['library_hours_access']) ;
+	}
+	
+	return $ret ;
+}
+
+function library_hours_update_6001() {
+	$field = array(
+		'type' => 'text',
+		'not null' => TRUE,
+		'size' => 'tiny',
+		'description' => t('Contains what module daterange belongs to'),
+	) ; 
+	
+	$ret = array() ;
+	db_add_field($ret, 'dateranges', 'target', $field) ;
+}
+
+function library_hours_update_6002() {
+	$schema['library_hours_library_notices'] = array(
+		'description' => t("Links banner notice to affected libraries."),
+		'fields' => array(
+			'id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t("Primary key"),
+			),
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("The banner notice node id"),
+			),
+			'tid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t("Library ID in vocabulary"),
+			),
+		),
+		'primary key' => array('id'),
+		'unique keys' => array(
+			'id' => array('id')
+		),
+		'indexes' => array(
+			'nid' => array('nid')
+		),
+	);
+	
+	$ret = array() ;
+	
+	if (!db_table_exists('library_hours_library_notices')) {
+		db_create_table($ret, 'library_hours_library_notices', $schema['library_hours_library_notices']) ;
+	}
+	
+	return $ret ;
+}
+
+function library_hours_update_6003() {
+	$field = array(
+		'type' => 'int',
+		'unsigned' => TRUE,
+		'not null' => TRUE,
+		'default' => 0,
+		'description' => t('Used by banner noticed and contains the id of the library related time frame'),
+	) ; 
+	
+	$ret = array() ;
+	db_add_field($ret, 'library_hours_library_notices', 'tfid', $field) ;
+}

@@ -1,0 +1,119 @@
+<?php
+
+function lcd_displays_install()
+{
+	drupal_install_schema('lcd_displays') ;
+	
+	# taxonomy for LCD Displays target
+	$lcd_target_vocabulary = array(
+		'name' => t('LCD Displays targets'),
+		'multiple' => '0',
+		'required' => '1',
+		'hierarchy' => '1',
+		'relations' => '0',
+		'weight' => 1,
+		'module' => 'lcd_displays',
+		'description' => t('List of LCD Displays target'),
+		'nodes' => array(
+			'lcd_announcement' => 1,
+			'lcd_event' => 1,
+		)
+	) ;
+	
+	taxonomy_save_vocabulary($lcd_target_vocabulary) ;
+	$vid = $lcd_target_vocabulary['vid'] ;
+	variable_set('lcd_displays_target_vocabulary', $vid) ;
+}
+
+function lcd_displays_uninstall()
+{
+	# delete news nodes
+	$res = db_query ("SELECT nid FROM {ld_news}") ;
+	while ($data = db_fetch_object($res)) {
+		node_delete($data->nid) ;
+	}
+	
+	# delete events nodes
+	$res = db_query ("SELECT nid FROM {ld_events}") ;
+	while ($data = db_fetch_object($res)) {
+		node_delete($data->nid) ;
+	}
+	
+	drupal_uninstall_schema('lcd_displays') ;
+	$vid = variable_get('lcd_displays_target_vocabulary', '') ;
+	taxonomy_del_vocabulary($vid) ;
+	variable_del('lcd_displays_target_vocabulary') ;
+}
+
+function lcd_displays_schema()
+{
+	$schema['ld_news'] = array(
+		'description' => t('This table stores announcements'),
+		'fields' => array(
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('announcement node id')
+			),
+			'startDate' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('announcement start date')
+			),
+			'endDate' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('announcement end date')
+			),
+			'priority' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('announcement priority')
+			),
+			/*
+			'last' => array(
+				'type' => 'char',
+				'size' => 'normal',
+				'not null' => TRUE,
+			)
+			*/
+		),
+		'primary key' => array('nid'),
+		'indexes' => array(
+			'nid' => array('nid')
+		),
+	) ;
+	
+	$schema['ld_events'] = array(
+		'description' => t('This table stores events'),
+		'fields' => array(
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('event node id')
+			),
+			'location' => array(
+				'type' => 'text',
+				'size' => 'small',
+				'not null' => TRUE,
+				'description' => t('event location')
+			),
+			'date' => array(
+				'type' => 'datetime',
+				'not null' => TRUE,
+				'description' => t('event date & time')
+			),
+		),
+		'primary key' => array('nid'),
+		'indexes' => array(
+			'nid' => array('nid')
+		),
+	) ;
+	
+	return $schema ;
+}

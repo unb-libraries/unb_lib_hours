@@ -1,0 +1,5 @@
+
+name = Library Hours Management
+description = Allows Library Staff to manage libraries hours of operations
+package = UNB Library
+core = 6.x

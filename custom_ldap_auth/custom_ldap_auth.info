@@ -1,0 +1,6 @@
+
+name = Custom LDAP Authentication
+description = Make sure that only LDAP users with existing drupal accounts can login 
+dependencies[] = ldapauth
+package = UNB Library
+core = 6.x

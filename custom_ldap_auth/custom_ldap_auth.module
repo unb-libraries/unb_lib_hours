@@ -1,0 +1,44 @@
+<?php
+
+function custom_ldap_auth_form_alter(&$form, $form_state, $form_id) {
+	// login form or block
+	if ($form_id == 'user_login' || $form_id == 'user_login_block') {
+		// login form is being submitted
+		if (isset($form_state['post']['name'])) {
+			// we replace validation function
+			$array_key = array_search('user_login_authenticate_validate', $form['#validate']) ;
+			$form['#validate'][$array_key] = 'custom_ldap_auth_login_validate' ;
+		}
+	}
+}
+
+// form validation handler
+function custom_ldap_auth_login_validate($form, &$form_state) {
+	global $user ;
+	if (!empty($user->uid)) {
+		// Too late, another module has already handled authentication..
+		return ;
+	}
+	
+	// call our custom authentication method
+	if (!custom_ldap_auth_authenticate($form_state['values'])) {
+		form_set_error('name', t('Access to the Staff website denied.')) ;
+		//drupal_goto(drupal_get_destination()) ;
+		return FALSE ;
+	}
+	else {
+		// perfom ldap_validation now
+		return ldapauth_login_authenticate_validate($form, $form_state) ;
+	}
+}
+
+// checks if there's currently a drupal user with submitted username 
+function custom_ldap_auth_authenticate($form_values) {
+	$account = user_load(array('name' => $form_values['name'], 'status' => 1));
+	
+	if ($account) {
+		return TRUE ;
+	}
+	
+	return FALSE ;
+}

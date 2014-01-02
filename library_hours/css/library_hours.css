@@ -1,0 +1,20 @@
+
+.timeframe-element {
+	margin-bottom:30px;
+}
+
+.library-hours-daterange-view-container {
+	/*background-color:#ddd;*/
+}
+
+.library-hours-daterange-view-content {
+	width:500px;
+	margin-left:20px;
+	background-color:#eee;
+}
+
+.library-hours-daterange-view-content .header {
+	background-color:#999;
+	font-weight:bold;
+	border-bottom:1px solid silver;
+}

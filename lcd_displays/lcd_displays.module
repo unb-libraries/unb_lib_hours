@@ -1,0 +1,713 @@
+<?php
+
+function lcd_displays_init() {
+	// TODO: Turn off display_errors before deployment
+	ini_set('display_errors', true) ;
+	
+	// constants
+	define('PRIORITY_NORMAL', 0) ;
+	define('PRIORITY_IMPORTANT', 1) ;
+	define('PRIORITY_URGENT', 2) ;
+	
+	drupal_add_css(drupal_get_path('module', 'lcd_displays') . '/lcd_displays.css');
+	drupal_add_js(drupal_get_path('module', 'lcd_displays') . '/lcd_displays.js');
+	
+	$opts = array('absolute' => TRUE) ;
+	$ahah_url = url('lcd_displays/ahah.html', $opts) ;
+	drupal_add_js(array('lcd_displays' => array('ahah_url' => $ahah_url)), 'setting') ;
+	
+}
+
+function lcd_displays_perm() {
+	$perms = array(
+		'administer LCD Displays', 
+		'create LCD Displays', 
+	) ;
+	return $perms ;
+}
+
+function lcd_displays_access($op, $node, $account) {
+	switch($op) {
+		case 'create':
+		case 'update':
+			return user_access('create LCD Displays') ;
+			break ;
+			
+		case 'delete':
+			return user_access('administer LCD Displays') ;
+			break ;
+	}
+}
+
+function lcd_announcement_access($op, $node, $account) {
+	return lcd_displays_access($op, $node, $account) ;
+}
+
+function lcd_event_access($op, $node, $account) {
+	return lcd_displays_access($op, $node, $account) ;
+}
+
+function lcd_displays_node_info() {
+	return array(
+		'lcd_announcement' => array(
+			'name' => t('LCD Announcement'),
+			'module' => 'lcd_announcement',
+			'description' => t('Defines an announcement to be displayed on LCD Displays'),
+			'has_title' => TRUE,
+			'title_label' => t('Heading'),
+			'has_body' => TRUE,
+			'locked' => TRUE
+		),
+		'lcd_event' => array(
+			'name' => t('LCD Event'),
+			'module' => 'lcd_event',
+			'description' => t('Defines an event to be displayed on LCD Displays'),
+			'has_title' => TRUE,
+			'title_label' => t('Event Name'),
+			'has_body' => FALSE,
+			'locked' => TRUE
+		)
+	) ;
+}
+
+function lcd_displays_menu() {
+	$items = array() ;
+	
+	$items['lcd_displays'] = array (
+		'title' => 'LCD Displays',
+		'page callback' => 'lcd_displays_view',
+		'access callback' => 'user_access',
+		'access arguments' => array('administer LCD Displays'),
+		'type' => MENU_NORMAL_ITEM
+	) ;
+	
+	$items['lcd_displays/ahah.html/%'] = array(
+		'title' => 'LCD Displays Entries',
+		'page callback' => 'lcd_displays_items',
+		'page arguments' => array(2,3) ,
+		'access arguments' => array('administer LCD Displays'),
+		'type' => MENU_CALLBACK
+	) ;
+	
+	/*
+	$items['lcd_displays/services/list/targets'] = array(
+		'title' => 'List LCD Displays Targets',
+		'page callback' => 'lcd_displays_services_targets',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'lcd_displays.services.inc',
+	) ;
+	
+	$items['lcd_displays/services/list/%'] = array(
+		'title' => 'LCD Displays Query Service',
+		'page callback' => 'lcd_displays_services_list',
+		'page arguments' => array(3) ,
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'lcd_displays.services.inc',
+	) ;
+	*/
+	
+	return $items ; 
+}
+
+function lcd_displays_items($param) {
+	$params = split('_', $param) ;
+	
+	if (count($params) != 2) 
+		die ;
+	
+	$html = '' ;
+	$items = _get_items($params[0], $params[1]) ;
+	
+	if ($params[0] == 'announcement') {
+		$html = _display_announcements($items, $params[1], true, true) ;
+	}
+	else if ($params[0] == 'event') {
+		$html = _display_events($items, $params[1], true, true) ;
+	}
+	
+	print $html ;
+}
+
+function _get_items($item_type, $state) {
+	$data = array() ;
+	$result = null ;
+	switch ($item_type) {
+		case 'announcement':
+			switch ($state) {
+				case 'active':
+					$result = db_query("SELECT * FROM {ld_news} WHERE CURDATE() BETWEEN DATE_FORMAT(startDate,'%%Y-%%m-%%d') AND DATE_FORMAT(endDate,'%%Y-%%m-%%d') ORDER BY startDate ASC") ;
+					while ($entry = db_fetch_object($result)) {
+						$node = node_load ($entry->nid) ;
+						$taxonomy = array_shift($node->taxonomy) ;
+						$entry->target = $taxonomy->name ;
+						$entry->title = $node->title ;
+						$entry->body = $node->body ;
+						$data[] = $entry ;
+					}
+					break; 
+					
+				case 'upcoming':
+					$result = db_query("SELECT * FROM {ld_news} WHERE DATE_FORMAT(startDate,'%%Y-%%m-%%d') > curdate() ORDER BY startDate ASC") ;
+					while ($entry = db_fetch_object($result)) {
+						$node = node_load ($entry->nid) ;
+						$taxonomy = array_shift($node->taxonomy) ;
+						$entry->target = $taxonomy->name ;
+						$entry->title = $node->title ;
+						$entry->body = $node->body ;
+						$data[] = $entry ;
+					}
+					break; 
+					
+				case 'archives':
+					$result = db_query("SELECT * FROM {ld_news} WHERE DATE_FORMAT(endDate,'%%Y-%%m-%%d') < curdate() ORDER BY startDate ASC") ;
+					while ($entry = db_fetch_object($result)) {
+						$node = node_load ($entry->nid) ;
+						$taxonomy = array_shift($node->taxonomy) ;
+						$entry->target = $taxonomy->name ;
+						$entry->title = $node->title ;
+						$entry->body = $node->body ;
+						$data[] = $entry ;
+					}
+					break; 
+			}
+			break ;
+		
+		case 'event':
+			switch ($state) {
+				case 'active':
+					$result = db_query("SELECT * FROM {ld_events} WHERE DATE_FORMAT(date,'%%Y-%%m-%%d') = curdate() ORDER BY date ASC") ;
+					while ($entry = db_fetch_object($result)) {
+						$node = node_load ($entry->nid) ;
+						$entry->title = $node->title ;
+						$taxonomy = array_shift($node->taxonomy) ;
+						$entry->target = $taxonomy->name ;
+						$data[] = $entry ;
+					}
+					break; 
+					
+				case 'upcoming':
+					$result = db_query("SELECT * FROM {ld_events} WHERE DATE_FORMAT(date,'%%Y-%%m-%%d') > curdate() ORDER BY date ASC") ;
+					while ($entry = db_fetch_object($result)) {
+						$node = node_load ($entry->nid) ;
+						$entry->title = $node->title ;
+						$taxonomy = array_shift($node->taxonomy) ;
+						$entry->target = $taxonomy->name ;
+						$data[] = $entry ;
+					}
+					break; 
+					
+				case 'archives':
+					$result = db_query("SELECT * FROM {ld_events} WHERE DATE_FORMAT(date,'%%Y-%%m-%%d') < curdate() ORDER BY date ASC") ;
+					while ($entry = db_fetch_object($result)) {
+						$node = node_load ($entry->nid) ;
+						$entry->title = $node->title ;
+						$taxonomy = array_shift($node->taxonomy) ;
+						$entry->target = $taxonomy->name ;
+						$data[] = $entry ;
+					}
+					break; 
+			}
+			break ;
+	}
+	
+	return $data ;
+}
+
+function lcd_displays_view() {
+	
+	$data = array (
+		'announcements' => array(
+			'active' => _get_items('announcement', 'active'),
+			'upcoming' => _get_items('announcement', 'upcoming'),
+			'archives' => _get_items('announcement', 'archives'),
+		),
+		'events' => array(
+			'active' => _get_items('event', 'active'),
+			'upcoming' => _get_items('event', 'upcoming'),
+			'archives' => _get_items('event', 'archives'),
+		),
+	) ;
+	
+	return theme('lcd_displays_view', $data) ;
+}
+
+function theme_lcd_displays_view($data) {
+	# Render annoucements
+	$output = '<p><a href="http://eclipse.hil.unb.ca/LCD/HIL2011/" target="_blank" style="color:#757A00;">VIEW LOBBY DISPLAY</a></p>' ;
+	$output .= '<div id="announcements">' ;
+	$output .= '<h2>Announcements</h2>' ;
+		$output .= '<ul class="accordion">' ;
+			$output .= _display_announcements($data['announcements']['active'], 'active', true) ;
+			$output .= _display_announcements($data['announcements']['upcoming'], 'upcoming') ;
+			$output .= _display_announcements($data['announcements']['archives'], 'archives') ;
+		$output .= '</ul>' ;		
+	$output .= '</div>' ;
+	
+	# Render events
+	$output .= '<div id="events">' ;
+	$output .= '<h2>Events</h2>' ;
+		$output .= '<ul class="accordion">' ;
+		$output .= _display_events($data['events']['active'], 'active', true) ;
+		$output .= _display_events($data['events']['upcoming'], 'upcoming') ;
+		$output .= _display_events($data['events']['archives'], 'archives') ;
+		$output .= '</ul>' ;
+	$output .= '</div>' ;
+	
+	return  '<div id="lcd-displays">' . $output . '</div>' ;
+}
+
+function _display_events($events, $state, $fetch = false, $ajax = false) {
+	
+	$output .= '<div class="window ' ; 
+	if ($state == 'active') $output .= 'active' ;
+	$output .= '">' ;
+	if ($fetch) {
+		foreach ($events as $event) {
+			$output .= '' . date('Y-m-d @ h:i A', strtotime($event->date)) . '<br /><span><strong>' . check_plain($event->title) . '</strong> &#8211; ' . check_plain($event->location) . '</span><br />
+						[' . check_plain($event->target) . ']<br />
+						<a href="/node/' . $event->nid . '/edit">Modify</a> | 
+						<a href="/node/' . $event->nid . '/delete">Delete</a><br />' ;
+		}
+	}
+	
+	$output .= '</div>' ;
+	
+	if (!$ajax) {
+		$output = '<li id="event_' . $state . '">'
+			. '<a href="#" class="ac_header">' . ucfirst($state) . ' (' . count($events) . ' items)</a>'
+			. $output 
+			. '</li>' ;
+	}
+	
+	return $output ;
+}
+
+function _display_announcements($announcements, $state, $fetch = false, $ajax = false) {
+	
+	$output .= '<div class="window ' ; 
+	if ($state == 'active') $output .= 'active' ;
+	$output .= '">' ;
+	if ($fetch) {
+		foreach ($announcements as $announcement) {
+			switch ($announcement->priority) {
+				case PRIORITY_NORMAL:
+					$output .= '<dl>' ;
+					break ;
+				case PRIORITY_IMPORTANT:
+					$output .= '<dl class="nb">' ;
+					break ;
+				case PRIORITY_URGENT:
+					$output .= '<dl class="urg">' ;
+					break ;
+			}
+			$output .= '<dt class="dark">' . check_plain($announcement->title) . '</dt>' ;
+			$output .= '<dd>' . check_plain($announcement->body) . '</dd>' ;
+			$output .= '<dd><strong>FROM</strong> ' . date('Y-m-d', strtotime($announcement->startDate)) . ' <strong>TO</strong> ' . date('Y-m-d', strtotime($announcement->endDate)) . ' </dd>' ;
+			$output .= '<dd>[' . check_plain($announcement->target) . ']</dd>' ;
+			$output .= '<dd><a href="/node/' . $announcement->nid . '/edit">Modify</a> | <a href="/node/' . $announcement->nid . '/delete">Delete</a></dd></dl>' ;
+			$output .= '</dl>' ;
+		}
+	}
+	$output .= '</div>' ;
+	
+	if (!$ajax) {
+		$output = '<li id="announcement_' . $state . '">' 
+			. '<a href="#" class="ac_header">' . ucfirst($state) . ' (' . count($announcements) . ' items)</a>' 
+			. $output 
+			. '</li>' ;
+	}
+	
+	return $output ;
+}
+
+function lcd_announcement_form($node) {
+	$type = node_get_types('type', $node) ;
+	
+	$default_date = array(
+		'month' => format_date(time(), 'custom', 'n'),
+		'day' => format_date(time(), 'custom', 'j'),
+		'year' => format_date(time(), 'custom', 'Y'),
+	) ;
+	
+	$form['#redirect'] = 'lcd_displays' ;
+	
+	$form['priority'] = array(
+		'#weight' => -10,
+		'#type' => 'radios',
+		'#title' => 'Priority',
+		'#default_value' => isset($node->priority) ? $node->priority : PRIORITY_NORMAL,
+		'#options' => array(
+			PRIORITY_NORMAL => t('Normal'),
+			PRIORITY_IMPORTANT => t('<strong>Important</strong> (locks announcement; no rotation)'),
+			PRIORITY_URGENT => t('<strong style="color: rgb(170, 4, 4);">Urgent!</strong> (fills screen; no rotation)'),
+		),
+	);
+	
+	$form['title'] = array(
+		'#type' => 'textfield',
+		'#title' => check_plain($type->title_label),
+		'#required' => TRUE,
+		'#default_value' => $node->title,
+		'#required' => TRUE,
+	) ;
+	
+	$form['body'] = array(
+		'#type' => 'textarea',
+		'#title' => check_plain($type->body_label),
+		'#default_value' => $node->body,
+		'#rows' => 5,
+		'#required' => TRUE,
+		'#description' => t('(25-30 words is probably the maximum here.)'),
+	) ;
+	
+	$form['start_date'] = array(
+		'#type' => 'date',
+		'#title' => t('Start Date'),
+		'#description' => t('Announcement display start date'),
+		'#default_value' => isset($node->start_date) ? $node->start_date : $default_date
+	) ;
+	
+	$form['end_date'] = array(
+		'#type' => 'date',
+		'#title' => t('End Date'),
+		'#description' => t('Announcement display end date'),
+		'#default_value' => isset($node->end_date) ? $node->end_date : $default_date
+	) ;
+	
+	return $form ;
+}
+
+function lcd_event_form($node) {
+	$type = node_get_types('type', $node) ;
+	$default_date = array(
+		'month' => format_date(time(), 'custom', 'n'),
+		'day' => format_date(time(), 'custom', 'j'),
+		'year' => format_date(time(), 'custom', 'Y'),
+	) ;
+	
+	$form['#redirect'] = 'lcd_displays' ;
+	
+	$form['title'] = array(
+		'#type' => 'textfield',
+		'#title' => check_plain($type->title_label),
+		'#required' => TRUE,
+		'#default_value' => $node->title,
+		'#required' => TRUE,
+		'#description' => t('eg. CLAS 2303'),
+	) ;
+	
+	$form['location'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Location'),
+		'#required' => TRUE,
+		'#default_value' => isset($node->location) ? $node->location : '',
+		'#required' => TRUE,
+		'#description' => t('(This should be brief (Demo Room) but it will accept a longer string of text. This will take up more lines, however)'),
+	) ;
+	
+	$form['event_date'] = array(
+		'#type' => 'date',
+		'#title' => t('Date'),
+		'#default_value' => isset($node->event_date) ? $node->event_date : $default_date
+	) ;
+	
+	$hours = array() ;
+	for ($i=7 ; $i <= 24 ; $i++) {
+		$hours[$i] = date('h a', mktime($i)) ;
+	}
+	$form['time']['hour'] = array(
+		'#type' => 'select',
+		'#title' => t('Hour'),
+		'#default_value' => isset($node->hour) ? $node->hour : 7,
+		'#options' => $hours
+	) ;
+	
+	$min = array() ;
+	for ($i=0 ; $i<60 ; $i++) {
+		if (($i % 5) == 0) {
+			$value = $i ;
+			if (strlen(strval($i)) == 1) $value = '0' . $value ;
+			$min[$i] = $value ;
+		}
+	}
+	$form['time']['min'] = array(
+		'#type' => 'select',
+		'#title' => t('Min'),
+		'#default_value' => isset($node->min) ? $node->min : 0,
+		'#options' => $min 
+	) ;
+	
+	return $form ;
+}
+
+function lcd_displays_form_alter(&$form, &$form_state, $form_id) {
+	if (($form_id == 'lcd_announcement_node_form') || ($form_id == 'lcd_event_node_form')) {
+		unset($form['buttons']['preview']) ;
+	}
+}
+
+function lcd_announcement_insert($node) {
+	
+	$rec = new stdClass() ;
+	$rec->nid = $node->nid ;
+	$rec->priority = intval($node->priority) ;
+	$rec->startDate = date('Y-m-d H:i:s', mktime(0,0,0,$node->start_date['month'],$node->start_date['day'],$node->start_date['year'])) ;
+	$rec->endDate = date('Y-m-d H:i:s', mktime(0,0,0,$node->end_date['month'],$node->end_date['day'],$node->end_date['year'])) ;
+	drupal_write_record('ld_news', $rec) ;	 
+}
+
+function lcd_event_insert($node) {
+	
+	$rec = new stdClass() ;
+	$rec->nid = $node->nid ;
+	$rec->location = $node->location ;
+	$rec->date = date('Y-m-d H:i:s', mktime($node->hour,$node->min,0,$node->event_date['month'],$node->event_date['day'],$node->event_date['year'])) ;
+	drupal_write_record('ld_events', $rec) ;
+}
+
+function lcd_announcement_load($node) {
+	$data = new stdClass() ;
+	
+	$result = db_query("SELECT * FROM {ld_news} WHERE nid = %d", $node->nid) ;
+	if (!$result) {
+		return FALSE ;
+	}
+	
+	$entry = db_fetch_object($result) ;
+	
+	$data->priority = $entry->priority ;
+	
+	$start_date = strtotime($entry->startDate) ;
+	$data->start_date = array(
+		'month' => intval(date('m', $start_date)),
+		'day' => intval(date('d', $start_date)),
+		'year' => date('Y', $start_date),
+	) ;
+	
+	$end_date = strtotime($entry->endDate) ;
+	$data->end_date = array(
+		'month' => intval(date('m', $end_date)),
+		'day' => intval(date('d', $end_date)),
+		'year' => date('Y', $end_date),
+	) ;
+	
+	return $data ;
+}
+
+function lcd_event_load($node) {
+	$data = new stdClass() ;
+	
+	$result = db_query("SELECT * FROM {ld_events} WHERE nid = %d", $node->nid) ;
+	if (!$result) {
+		return FALSE ;
+	}
+	
+	$entry = db_fetch_object($result) ;
+	
+	$data->location = check_plain($entry->location) ;
+	
+	$date = strtotime($entry->date) ;
+	$data->event_date = array(
+		'month' => intval(date('m', $date)),
+		'day' => intval(date('d', $date)),
+		'year' => date('Y', $date),
+	) ;
+	
+	$data->hour = date('H', $date) ;
+	$data->min = date('i', $date) ;
+	
+	return $data ;
+}
+
+function lcd_announcement_update($node) {
+	$rec = new stdClass() ;
+	$rec->nid = $node->nid ;
+	$rec->priority = intval($node->priority) ;
+	$rec->startDate = date('Y-m-d H:i:s', mktime(0,0,0,$node->start_date['month'],$node->start_date['day'],$node->start_date['year'])) ;
+	$rec->endDate = date('Y-m-d H:i:s', mktime(0,0,0,$node->end_date['month'],$node->end_date['day'],$node->end_date['year'])) ;
+	drupal_write_record('ld_news', $rec, 'nid') ;
+}
+
+function lcd_event_update($node) {
+	$rec = new stdClass() ;
+	$rec->nid = $node->nid ;
+	$rec->location = $node->location ;
+	$rec->date = date('Y-m-d H:i:s', mktime($node->hour,$node->min,0,$node->event_date['month'],$node->event_date['day'],$node->event_date['year'])) ;
+	drupal_write_record('ld_events', $rec, 'nid') ;
+}
+
+function lcd_displays_theme() {
+	return array(
+		'lcd_announcement' => array(
+			'arguments' => array('announcement' => NULL),
+			'file' => 'lcd_displays.theme.inc',
+		),
+		'lcd_event' => array(
+			'arguments' => array('event' => NULL),
+			'file' => 'lcd_displays.theme.inc',
+		),
+		'lcd_displays_view' => array(
+			'arguments' => array('data' => NULL),
+			'file' => 'lcd_displays.theme.inc',			
+		)
+	) ;
+}
+
+function lcd_displays_nodeapi(&$node, $op) {
+	switch ($op) {
+		case 'view':
+			$target_name = '' ;
+			if (($node->type == 'lcd_event') || ($node->type == 'lcd_announcement')) {
+				$taxonomy = array_shift($node->taxonomy) ;
+				$target_name = $taxonomy->name ;
+			}
+			
+			if ($node->type == 'lcd_announcement') {
+				$result = db_query("SELECT * FROM {ld_news} WHERE nid = %d", $node->nid) ;
+				if ($result) {
+					$announcement = db_fetch_object($result) ;
+					$announcement->target = $target_name ;
+					$node->content['lcd_announcement'] = array (
+						'#value' => theme('lcd_announcement', $announcement),
+						'#title' => t('LCD Display Info')
+					) ;
+				}
+			}
+			
+			if ($node->type == 'lcd_event') {
+				$result = db_query("SELECT * FROM {ld_events} WHERE nid = %d", $node->nid) ;
+				if ($result) {
+					$event = db_fetch_object($result) ;
+					$event->target = $target_name ;
+					$node->content['lcd_event'] = array (
+						'#value' => theme('lcd_event', $event),
+						'#title' => t('LCD Display Info')
+					) ;
+				}
+			}
+			
+			break ; 
+			
+		case 'delete':
+			$type_name = ''; 
+			if ($node->type == 'lcd_announcement') {
+				$type_name = 'LCD Announcement' ;
+				$result = db_query("DELETE FROM {ld_news} WHERE nid = %d", $node->nid) ;
+			}
+			else if ($node->type == 'lcd_event') {
+				$type_name = 'LCD Event' ;
+				$result = db_query("DELETE FROM {ld_events} WHERE nid = %d", $node->nid) ;
+			}
+			
+			if (($node->type == 'lcd_announcement') || ($node->type == 'lcd_event')) {
+				watchdog('lcd_displays', 
+					$type_name . ' with %nid deleted.',
+					array('%nid' => $node->nid),
+					WATCHDOG_NOTICE
+				) ;
+				
+				# rebuild cache
+				# $tid = array_shift($node->taxonomy) ;
+				//_buildCache($tid) ;
+			}
+			
+			break ;
+			/*
+			case 'insert':
+				require_once('FirePHPCore/FirePHP.class.php');
+				$firephp = FirePHP::getInstance(true);
+				$firephp->info($node) ;
+				die ;
+				break ;
+		
+		case 'update':
+		case 'insert':
+			if (($node->type == 'lcd_announcement') || ($node->type == 'lcd_event')) {
+				$tid = array_shift($node->taxonomy) ;
+				//_buildCache($tid) ;				
+			}
+			break ;
+		*/
+	}
+}
+
+function lcd_displays_cron() {
+	$hour = date('h') ;
+	$period = date('a') ;
+	// run this at midnight
+	if (($period == 'am') && (($hour >= 1) && ($hour <= 6))) {
+		$result = db_query("SELECT nid FROM {ld_events} WHERE date <= curdate()") ;
+		while ($event = db_fetch_object($result)) {
+			node_delete($event->nid) ;
+		}
+	}
+}
+
+function theme_lcd_announcement($announcement) {
+	
+	$out .= t('[%target]', array('%target' => $announcement->target)) ;
+	$out .= '<br />' ;
+	$out .= t('FROM @start TO @end', array(
+		'@start' => date('Y-m-d', strtotime($announcement->startDate)),
+		'@end' => date('Y-m-d', strtotime($announcement->endDate)),
+	)) ;
+	
+	return $out ;
+}
+
+function theme_lcd_event($event) {
+	$out .= t('[%target]', array('%target' => $event->target)) ;
+	$out .= '<br />' ;
+	$out .= t('@date @ @time - @location', array(
+		'@date' => date('Y-m-d', strtotime($event->date)),
+		'@time' => date('h:i A', strtotime($event->date)),
+		'@location' => stripslashes($event->location),
+	)) ;
+	
+	return $out ;
+}
+
+/*
+function _buildCache($target_id) {
+	$data = array() ;
+	$tids = array(intval($target_id)) ;
+	
+	$node_list = array() ;
+	$nodes = taxonomy_select_nodes($tids) ;
+	while ($node = db_fetch_object($nodes)) {
+		$node_list[] = $node->nid ;
+	}
+	
+	$data = array('announcements' => array(), 'events' => array()) ;
+	
+	// search for announcements
+	$res_ann = db_query("SELECT * FROM {ld_news} WHERE CURDATE() BETWEEN startDate AND endDate AND nid IN (" . join(',', $node_list) . ") ORDER by nid DESC") ;
+	while ($ann = db_fetch_object($res_ann)) {
+		$ann_node = node_load($ann->nid) ;
+		$data['announcements'][] = array(
+			'priority' => intval($res_ann->priority),
+			'heading' => check_plain($ann_node->title),
+			'body' => check_plain($ann_node->body),
+			//'start_date' => check_plain($ann->startDate),
+			//'end_date' => check_plain($ann->endDate),
+		) ;
+	}
+	
+	// search for events
+	$res_event = db_query("SELECT * FROM {ld_events} WHERE DATE_FORMAT(date,'%%Y-%%m-%%d') = curdate() AND nid IN (" . join(',', $node_list) . ") ORDER by nid DESC") ;
+	while ($event = db_fetch_object($res_event)) {
+		$event_node = node_load($event->nid) ;
+		$data['events'][] = array(
+			'title' => check_plain($event_node->title),
+			'location' => check_plain($event->location),
+			'time' => date('h:i', $event->date),
+		) ;
+	}
+	
+	$cache_id = 'lcd_displays_for_target' . $target_id ;
+	//cache_clear_all($cache_id, 'cache') ; 
+	cache_set($cache_id, $data) ;
+}
+*/

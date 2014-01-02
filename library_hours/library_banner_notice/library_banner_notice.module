@@ -1,0 +1,507 @@
+<?php
+
+/*
+function library_banner_notice_node_info() {
+	return array(
+		'banner_notice' => array(
+			'name' => t('Banner Notice'),
+			'module' => 'library_banner_notice',
+			'description' => t('Library Hours Webpage Warning System'),
+			'has_title' => TRUE,
+			'title_label' => t('Heading'),
+			'has_body' => TRUE,
+			'body_label' => 'Message',
+			'locked' => TRUE
+		)
+	) ;
+}
+
+function library_banner_notice_perm() {
+	return array(
+		'administer banner notice'
+	) ;
+}
+*/
+
+function library_banner_notice_access($op, $node, $account) {
+	switch ($op) {
+		case 'create':
+		case 'update':
+		case 'delete':
+			return user_access('administer banner notice') ;
+	}
+}
+
+function _get_libraries_list() {
+	$options = array() ;
+	$vid = variable_get('library_hours_lib_vocabulary', '') ;
+	$tree = taxonomy_get_tree($vid) ;
+	foreach($tree as $entry) {
+		if ($entry->depth == 0) {
+			$options[$entry->tid] = t($entry->name) ;
+		}
+	}
+	
+	return $options ;
+}
+
+function library_banner_notice_form(&$node, $form_state) {
+	$type = node_get_types('type', $node) ;
+	
+	$form['title'] = array(
+		'#type' => 'textfield',
+		'#title' => check_plain($type->title_label),
+		'#required' => TRUE,
+		'#default_value' => $node->title,
+		'#maxlength' => 255,
+	) ;
+	
+	$form['body'] = array(
+		'#type' => 'textarea',
+		'#title' => check_plain($type->body_label),
+		'#default_value' => $node->body,
+		'#rows' => 5,
+		'#required' => TRUE,
+		'#description' => t('Example: All UNB Libraries on the Fredericton campus are closed today, xxxxxxx, due to weather conditions. The Libraries are expected to re-open at xxxxxxxx. Any updates to this situation will be posted here.')
+	) ;
+	
+	$form['daterange'] = array(
+		'#title' => t('Banner Date Range'),
+		'#type' => 'fieldset',
+		'#description' => t('Specify start and end date for banner'),
+	) ;
+	
+	$defaultDate = array(
+		'month' => format_date(time(), 'custom', 'n'),
+		'day' => format_date(time(), 'custom', 'j'),
+		'year' => format_date(time(), 'custom', 'Y'),
+	) ;
+	
+	$form['daterange']['start'] = array(
+		'#title' => t('Start Date'),
+		'#type' => 'date',
+		'#description' => t('Set Start Date'),
+		'#default_value' => isset($node->start) ? $node->start : $defaultDate ,		
+	) ;
+	
+	$form['daterange']['end'] = array(
+		'#title' => t('End Date'),
+		'#type' => 'date',
+		'#description' => t('Set End Date'),
+		'#default_value' => isset($node->end) ? $node->end : $defaultDate ,		
+	) ;
+	
+	# get library list
+	$options = _get_libraries_list() ;
+	/*
+	$form['library_list'] = array(
+		'#title' => t('Library Closures'),
+		'#type' => 'fieldset',
+		'#description' => t('Only complete the section if there are library closures. Select affected libraries.'),
+	) ;
+	
+	$form['library_list']['libraries'] = array(
+		'#title' => t('Affected Libraries'),
+		//'#required' => TRUE,
+		'#type' => 'checkboxes',
+		'#options' => $options,
+		'#default_value' => isset($node->libraries) ? $node->libraries : array()
+	) ;
+	*/
+	#for($i=1 ; $i<=3 ; $i++) {
+	foreach ($options as $key => $value) {
+		$form["timeframe_{$key}"] = array(
+			'#title' => t("Time Frame for {$value}"),
+			'#type' => 'fieldset',
+			'#description' => t('Specify notice start and end days'),
+		) ;
+		
+		$te = "timeframe_element_{$key}" ;
+		$default = isset($node->$te) ? $node->$te : null ; 
+		
+		// first time frame not colapsible
+		$form["timeframe_{$key}"]['#collapsible'] = TRUE ;
+		if ($default == null) {
+			$form["timeframe_{$key}"]['#collapsed'] = TRUE ;
+		}
+		
+		$form["timeframe_{$key}"]['element'] =  _build_banner_noticed_time_frame_element($key, $default) ;
+	}
+	
+	return $form ;
+}
+
+function _build_banner_noticed_time_frame_element($id, $default = null) {
+/*require_once('FirePHPCore/FirePHP.class.php');
+$firephp = FirePHP::getInstance(true);
+$firephp->info($default) ;*/	
+	if ($default == null) {
+		$default = array(
+			"start_day_{$id}" => 'Mon',
+			"end_day_{$id}" => 'NaN',
+			"start_time_{$id}" => '',
+			"end_time_{$id}" => '',
+			"alt_text_{$id}" => '',
+			"options_{$id}" => array()
+		) ;
+	}
+	
+	$element["timeframe_element_{$id}"] = array(
+		'#tree' => TRUE,
+		'#prefix' => '<div class="timeframe-element">',
+		'#suffix' => '</div>'
+	) ;
+	
+	$element["timeframe_element_{$id}"]["start_day_{$id}"] = array(
+		'#type' => 'select',
+		'#title' => t('Start Day'),
+		//'#required' => TRUE,
+		'#default_value' => $default["start_day_{$id}"],
+		'#options' => array(
+			'Mon' => t('Monday'),
+			'Tue' => t('Tuesday'),
+			'Wed' => t('Wednesday'),
+			'Thu' => t('Thursday'),
+			'Fri' => t('Friday'),
+			'Sat' => t('Saturday'),
+			'Sun' => t('Sunday')
+		) 
+	) ;
+
+	$element["timeframe_element_{$id}"]["end_day_{$id}"] = array(
+		'#type' => 'select',
+		'#title' => t('Select End Day'),
+		'#default_value' => $default["end_day_{$id}"],
+		'#options' => array(
+			'NaN' => t('Same Day'),
+			'Mon' => t('Monday'),
+			'Tue' => t('Tuesday'),
+			'Wed' => t('Wednesday'),
+			'Thu' => t('Thursday'),
+			'Fri' => t('Friday'),
+			'Sat' => t('Saturday'),
+			'Sun' => t('Sunday')
+		) 
+	) ;
+	
+	$element["timeframe_element_{$id}"]["alt_text_{$id}"] = array(
+		'#type' => 'textfield',
+		'#title' => 'Alternate Text',
+		'#default_value' => $default["alt_text_{$id}"],
+		'#description' => 'This will replace selected days. For instance Good Friday.'
+	) ;
+	
+	$element["timeframe_element_{$id}"]["start_time_{$id}"] = array (
+		'#type' => 'textfield',
+		'#title' => 'Start Time',
+		'#size' => 10,
+		'#default_value' => $default["start_time_{$id}"],
+		'#description' => 'Format: 8:00 AM'
+	) ;
+	
+	$element["timeframe_element_{$id}"]["end_time_{$id}"] = array (
+		'#type' => 'textfield',
+		'#title' => 'End Time',
+		'#size' => 10,
+		'#default_value' => $default["end_time_{$id}"],
+		'#description' => 'Format: 8:00 AM'
+	) ;
+	
+	// check boxes
+	$checkboxes_options = array(
+		'is_closed' => t('Library is closed'),
+		'delete' => t('Delete entry') 
+	) ;
+	
+	$element["timeframe_element_{$id}"]["options_{$id}"] = array (
+		'#title' => t('Additional Options'),
+		'#type' => 'checkboxes',
+		'#description' => t('Please note if any of these actions apply this time frame'),
+		'#options' => $checkboxes_options,
+		'#default_value' => isset($default["options_{$id}"]) ? $default["options_{$id}"] : array()
+	) ;
+	
+	return $element ;
+}
+
+function library_banner_notice_validate($node, &$form) {
+	
+	$today = mktime(0,0,0,date('m'),date('d'),date('Y')) ;
+	$start_date = mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year']) ;
+	$end_date = mktime(0,0,0,$node->end['month'],$node->end['day'],$node->end['year']) ;
+	/*
+	if ($start_date < $today) {
+		form_set_error('start', t('Invalid start date')) ;
+	}
+	*/
+	if (($end_date < $start_date) /*|| ($end_date < $today)*/) {
+		form_set_error('end', t('Invalid dates')) ;
+	}
+	
+	/*
+	$no_library_selected = true ;
+	foreach ($node->libraries as $tid => $value) {
+		if ($value != 0) {
+			$no_library_selected = false ;
+			break ;
+		}
+	}
+	
+	
+	if ($no_library_selected) {
+		form_set_error("library_list][libraries", t('Select at least one library in affected library list')) ;
+	}
+	*/
+	
+	/*
+	# make sure time frame #1 is not empty and valid
+	if (_timeframe_is_empty($node->timeframe_element_1, 1)) {
+		form_set_error('timeframe_element_1', t('Time Frame #1 is required')) ;
+	}
+	else {
+		_validate_timeframe($node->timeframe_element_1, 1) ;
+	}
+	*/
+	
+	# check time frames #2 and #3
+	/*for ($i=1 ; $i <=3 ; $i++) {
+		$te = "timeframe_element_{$i}" ;
+		if (!_timeframe_is_empty($node->$te, $i)) {
+			_validate_timeframe($node->$te, $i) ;
+		}
+	}
+	*/
+	
+	$options = _get_libraries_list() ;
+	foreach ($options as $key => $value) {
+		$te = "timeframe_element_{$key}" ;
+		if (!_timeframe_is_empty($node->$te, $key)) {
+			_validate_timeframe($node->$te, $key) ;
+		}
+	}
+}
+
+function _timeframe_is_empty($timeframe, $id) {
+	if (!empty($timeframe['alt_text_' . $id]) || !empty($timeframe['start_time_' . $id]) || !empty($timeframe['end_time_' . $id])) {
+		return false ;
+	}
+	return true ;
+}
+
+function _validate_timeframe($timeframe, $id) {
+	$patterns = '/^\d{1,2}:\d{2}\s?[a|p]m/i' ;
+	$start_time = $timeframe["start_time_{$id}"] ;
+	if (empty($start_time)) {
+		form_set_error("timeframe_element_{$id}][start_time_{$id}", t("Start time #{$id} is required")) ;
+	}
+	if (!preg_match($patterns, $start_time)) {
+		form_set_error("timeframe_element_{$id}][start_time_{$id}", t("Start time #{$id} is invalid")) ;
+	}
+	
+	$end_time = $timeframe["end_time_{$id}"] ;
+	if (empty($end_time)) {
+		form_set_error("timeframe_element_{$id}][end_time_{$id}", t("End time #{$id} is required")) ;
+	}
+	if (!preg_match($patterns, $end_time)) {
+		form_set_error("timeframe_element_{$id}][end_time_{$id}", t("End time #{$id} is invalid")) ;
+	}
+}
+
+function library_banner_notice_insert($node) {
+	
+	if ($node->type == 'banner_notice') {
+		
+		/*
+		foreach($node->libraries as $library => $value) {
+			if ($value != 0) {
+				$rec = new stdClass() ;
+				$rec->nid = $node->nid ;
+				$rec->tid = $value ;
+				drupal_write_record('library_hours_library_notices', $rec) ;
+			}
+		}
+		*/
+		$notices = array() ;
+		$options = _get_libraries_list() ;
+		foreach ($options as $key => $value) {
+			$te = "timeframe_element_{$key}" ;
+			if (!_timeframe_is_empty($node->$te, $key)) {
+				$rec = new stdClass() ;
+				$rec->nid = $node->nid ;
+				$rec->tid = $key ;
+				drupal_write_record('library_hours_library_notices', $rec) ;
+				
+				// save new notice id
+				$notices[$key] = $rec->id ;
+			}
+		}
+		
+		
+		_save_daterange($node) ;
+		
+		$result = db_query("SELECT * FROM {dateranges} WHERE nid = %d AND target='banner'", $node->nid) ;
+		$dt = db_fetch_object($result) ;
+		
+		#for ($i=1 ; $i <=3 ; $i++) {
+		foreach ($options as $key => $value) {
+			$te = "timeframe_element_{$key}" ;
+			$timeframe = $node->$te ;
+			$tf_options = $timeframe["options_{$key}"] ;
+			$delete_tf = ($tf_options['delete'] === 'delete') ? true : false ;
+
+			if (!_timeframe_is_empty($node->$te, $key) && !$delete_tf) {
+				_save_timeframe($node->nid, $dt->did, $node->$te, $key, $notices) ;
+			}
+		}
+	}
+}
+
+function library_banner_notice_load($node) {
+	
+	$data = new stdClass() ;
+	$result = db_query("SELECT * FROM {dateranges} WHERE nid = %d AND target='banner'", $node->nid) ;
+	
+	if (!$result) { 
+		return FALSE ;
+	}
+	
+	$dt = db_fetch_object($result) ;
+	
+	$start_date = strtotime($dt->startDate) ;
+	$data->start = array(
+		'month' => intval(date('m', $start_date)),
+		'day' => intval(date('d', $start_date)),
+		'year' => date('Y', $start_date),
+	) ;
+	
+	$end_date = strtotime($dt->endDate) ;
+	$data->end = array(
+		'month' => intval(date('m', $end_date)),
+		'day' => intval(date('d', $end_date)),
+		'year' => date('Y', $end_date),
+	) ;
+	
+	//$i = 1 ;
+	$result2 = db_query("SELECT * FROM {timeframes} WHERE did=%d ORDER BY tid ASC", $dt->did) ;
+	while ($timeframe = db_fetch_object($result2)) {
+		
+		# retrieve library taxonomy id
+		$notice_result = db_query("SELECT tid FROM {library_hours_library_notices} WHERE tfid = %d", $timeframe->tid) ;
+		$notice_data = db_fetch_object($notice_result) ;
+		if (!$notice_data) {
+			continue ;
+		}
+
+		$tf = array() ;
+		$i = $notice_data->tid ;
+		$tf["start_day_{$i}"] = $timeframe->startDay ;
+		$tf["end_day_{$i}"] = $timeframe->endDay ;
+		$tf["alt_text_{$i}"] = $timeframe->altText ;
+		$tf["start_time_{$i}"] = date('g:i a', strtotime($timeframe->startTime)) ;
+		$tf["end_time_{$i}"] = date('g:i a', strtotime($timeframe->endTime)) ;
+		$tf["options_{$i}"] = array ('is_closed' => ($timeframe->isClosed ? 'is_closed' : 0)) ;
+		
+		$te = "timeframe_element_{$i}" ;
+		$data->$te = $tf ;
+		//$i++ ;
+	}
+	
+	$result3 = db_query("SELECT tid FROM {library_hours_library_notices} WHERE nid=%d", $node->nid) ;
+	$affected_libs = array() ;
+	while ($entry = db_fetch_object($result3)) {
+		$affected_libs[$entry->tid] = $entry->tid ;
+	}
+
+	$data->libraries = $affected_libs ;
+	
+	return $data ;
+}
+
+function library_banner_notice_update($node) {
+	
+	# treat new revision as new record
+	if ($node->revision) {
+		library_banner_notice_insert($node) ;
+	}
+	else {
+		
+		db_query('DELETE FROM {library_hours_library_notices} WHERE nid = %d', $node->nid) ;
+		#foreach($node->libraries as $library => $value) {
+		$notices = array() ;
+		$options = _get_libraries_list() ;
+		foreach ($options as $key => $value) {
+			$te = "timeframe_element_{$key}" ;
+			if(!_timeframe_is_empty($node->$te, $key)) {
+				$rec = new stdClass() ;
+				$rec->nid = $node->nid ;
+				$rec->tid = $key ;
+				drupal_write_record('library_hours_library_notices', $rec) ;
+				
+				// save new notice id
+				$notices[$key] = $rec->id ;
+			}
+		}
+		
+		$result = db_query("SELECT * FROM {dateranges} WHERE nid = %d AND target='banner'", $node->nid) ;
+		$dt = db_fetch_object($result) ;
+		_save_daterange($node, $dt->did) ;
+		
+		# delete existing time frames
+		$result = db_query('DELETE FROM {timeframes} WHERE did = %d', $dt->did) ;
+		//_save_timeframe($node->nid, $dt->did, $node->timeframe_element_1, 1) ;
+		
+		#for ($i=1 ; $i <=3 ; $i++) {
+		foreach ($options as $i => $value) {
+			$te = "timeframe_element_{$i}" ;
+			$timeframe = $node->$te ;
+			$tf_options = $timeframe["options_{$i}"] ;
+			$delete_tf = ($tf_options['delete'] === 'delete') ? true : false ;
+
+			if (!_timeframe_is_empty($node->$te, $i) && !$delete_tf) {
+				_save_timeframe($node->nid, $dt->did, $node->$te, $i, $notices) ;
+			}
+		}
+		
+	}
+}
+
+function _save_daterange($node, $did = 0) {
+	$rec = new stdClass() ;
+	$rec->nid = $node->nid ;
+	$rec->target = 'banner' ;
+	$rec->label = $node->title ;
+	$rec->startDate = date('Y-m-d H:i:', 
+		mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year'])) ;
+	$rec->endDate = date('Y-m-d H:i:', 
+		mktime(23,59,59,$node->end['month'],$node->end['day'],$node->end['year'])) ;
+
+	if (!$did) {
+		drupal_write_record('dateranges', $rec) ;
+	}
+	else {
+		$rec->did = $did ;
+		drupal_write_record('dateranges', $rec, 'did') ;
+	}
+}
+
+function _save_timeframe($nid, $did, $timeframe, $id, $notice_ids = array()) {
+	$rec = new stdClass() ;
+	$rec->did = $did ;
+	$rec->startDay = $timeframe["start_day_{$id}"] ;
+	$rec->endDay = $timeframe["end_day_{$id}"] ;
+	$rec->startTime = date('Y-m-d H:i:s', strtotime($timeframe["start_time_{$id}"])) ;
+	$rec->endTime = date('Y-m-d H:i:s', strtotime($timeframe["end_time_{$id}"])) ;
+	$rec->altText = $timeframe["alt_text_{$id}"] ;
+	$options = $timeframe["options_{$id}"] ;
+	$rec->isClosed = ($options["is_closed"] === 'is_closed') ? 1 : 0 ;
+	drupal_write_record('timeframes', $rec) ;
+	
+	if (!empty($notice_ids) && isset($notice_ids[$id])) {
+		$record = new stdClass() ;
+		$record->id = $notice_ids[$id] ;
+		$record->nid = $nid ;
+		$record->tid = $id ;
+		$record->tfid = $rec->tid ;
+		drupal_write_record('library_hours_library_notices', $record, 'id') ;
+	}
+}

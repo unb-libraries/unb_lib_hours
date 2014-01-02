@@ -1,0 +1,211 @@
+<?php
+
+include_once('meeting_minutes_feature.features.inc');
+
+function get_committee_field_values() {
+	$field = content_fields('field_committee', 'meeting_minutes'); 
+	$values = content_allowed_values($field) ;
+	foreach ($values as $key => $value) {
+		$values[$key] = str_replace('&', ' ', $value) ;
+	}
+	return $values ;
+}
+
+function meeting_minutes_feature_menu() {
+	//$type = 'meeting-minutes' ;
+	$items['node/%node/add-another'] = array(
+	    'title' => 'Add Another',
+	    'page callback' => 'meeting_minutes_quick_add',
+	    'page arguments' => array(1),
+	    'access callback' => 'user_access',
+	    'access arguments' => array('access Meeting Minutes'),
+	    'weight' => -10,
+	    'type' => MENU_LOCAL_TASK,
+  );
+  
+  return $items ;
+}
+
+function meeting_minutes_quick_add($node) {
+	$type = str_replace('_', '-', $node->type) ;
+	drupal_goto('node/add/' . $type) ;
+}
+
+function meeting_minutes_feature_perm() {
+	$perms = array (
+		'access Meeting Minutes',
+	) ;
+	
+	$values = get_committee_field_values() ;
+	if (is_array($values) && !empty($values)) {
+		foreach ($values as $ley => $value) {
+			$perms[] = 'add document to ' . $value ; 			
+		}
+	}
+	
+	return $perms ;
+}
+
+function meeting_minutes_feature_form_alter(&$form, &$form_state, $form_id) {
+	if ($form_id == 'meeting_minutes_node_form') {
+		$form['#validate'][] = 'meeting_minutes_feature_form_validate' ;
+		
+		$form['form_description'] = array(
+			'#value' => '<p>UPDATES: To replace previous draft versions on minutes simply upload
+				minutes with the same committee and date selections. Special Notes are not
+				included in file matching, so committee minutes with the same date will be
+				considered the same file.</p><p>DELETIONS: If minutes need to be replaced entirely, please <a
+				href="mailto:jjc@unb.ca">email the site administrator to have them
+				deleted</a>.</p>',
+			'#weight' => -10
+		) ;
+	}
+}
+
+function meeting_minutes_feature_form_validate($form, &$form_state) {
+	
+	if ($form_state['clicked_button']['#id'] == 'edit-submit') {
+		$date = trim($form_state['values']['field_meeting_date'][0]['value']) ;
+		$code = $form_state['values']['field_committee'][0]['value'] ;
+		$special_note = trim($form_state['values']['field_special_note'][0]['value']) ;
+		$overwrite = $form_state['values']['field_confirm_overwrite'][0]['value'] ;
+		$docname = $form_state['values']['field_document'][0]['filename'] ;
+		
+		# check if user has permission
+		$committee_list = get_committee_field_values() ;
+		$committee = $committee_list[$code] ;
+		$permission = 'add document to ' . $committee ;
+		if (!user_access($permission)) {
+			form_set_error('field_committee', t('You do not have permission to add document to %committee', 
+				array('%committee' => $committee))) ;
+		}
+		
+		// Committee code
+		if ($code == 'None') {
+			form_set_error('field_committee', 'You need to select a committee') ;
+		}
+		
+		// Date
+		if (empty($date)) {
+			form_set_error('field_meeting_date', 'Meeting date is required.') ;
+		}
+		
+		// Special Note
+		if (!empty($special_note) && (strpos($special_note, ' ') !== FALSE)) {
+			form_set_error('field_special_note', 'Special Note field does not allow spaces') ;
+		
+		}
+		elseif (!empty($special_note) && (strlen($special_note) > 15)) {
+			form_set_error('field_special_note', 'Special Note field is limited to 15 characters.') ;
+		}
+		
+		if (!empty($date) && !empty($docname)) {
+			$date = date('Y-m-d', strtotime($date)) ;
+			$doc_infos = pathinfo($docname) ;
+			$filename = "{$code}-{$date}" ;
+			/*
+			if (!empty($special_note)) {
+				$filename .= "-{$special_note}" ;
+			}
+			*/
+			$filename .= ".{$doc_infos['extension']}" ;
+			$filedir = file_directory_path() . "/meeting_minutes/" ;
+			$filepath = $filedir . $filename ;
+			$dirpath = realpath('./') . '/' . $filepath ;
+			if (file_exists($dirpath) && !$overwrite) {
+				form_set_error('field_document', 'A file with same parameters already exists. Set ovewrite to Yes to replace it.') ;
+			}
+			
+			if (file_exists($dirpath) && $overwrite) {
+				$sql = "SELECT mm.nid FROM content_type_meeting_minutes mm, files f 
+					WHERE f.filename = '%s' AND f.fid = mm.field_document_fid" ;
+				$result = db_query($sql, $filename) ;
+				$data = db_fetch_object($result) ;
+				
+				// copy file to archive folder
+				$archive_path = $filedir . '/deleted_documents' ;
+				
+				// if new node being created, no delete button available so delete exisiting node
+				if (!isset($form_state['values']['delete'])) {
+					_copy_document_to_archive($filepath, $archive_path) ;
+					node_delete($data->nid) ;
+				}
+				// keep node, but but simply delete document only if new document being uploaded
+				else {
+					$doc_md5 = md5_file(realpath('./') . '/' . $form_state['values']['field_document'][0]['filepath']) ;
+					$existing_doc_md5 = md5_file($dirpath) ;
+					if ($doc_md5 != $existing_doc_md5) {
+						_copy_document_to_archive($filepath, $archive_path) ;
+						unlink($dirpath) ;
+					}
+				}
+			}
+		}
+	}
+}
+/*
+function meeting_minutes_feature_nodeapi(&$node, $op) {
+	switch($op) {
+		case 'delete':
+			if ($node->type == 'meeting_minutes') {
+				$doc = realpath('./') . $node->field_document[0]['filepath'] ;
+				$doc_infos = pathinfo($doc) ;
+				
+				$date = date('Y-m-d', strtotime($node->field_meeting_date[0]['value'])) ;
+				$files_dir = realpath('./') . '/' . file_directory_path() . "/meeting_minutes/" ;
+				$filepath = $files_dir . "{$node->field_committee[0]['value']}-{$date}.{$doc_infos['extension']}" ;
+				$archive_path = $files_dir . '/deleted_documents' ;
+				_copy_document_to_archive($filepath, $archive_path) ;
+			} 
+			break ;
+	}
+}
+*/
+function _copy_document_to_archive($filepath, $archive_path) {
+	
+	// create archive folder if not available
+	if (!file_exists($archive_path)) {
+		mkdir($archive_path) ;
+	}
+	
+	$file_infos = pathinfo($filepath) ;
+	$filename = $file_infos['filename'] ;
+	$file_extension = $file_infos['extension'] ;
+	$i = 0 ;
+	$destpath = $archive_path . "/{$file_infos['basename']}" ;
+	while (file_exists($destpath)) {
+		$i++ ;
+		$new_name = $filename . "_{$i}.{$file_extension}" ;
+		$destpath = $archive_path . '/' . $new_name ; 
+	}
+
+	copy($filepath, $destpath) ;
+	watchdog('meeting_minutes', "Document %doc_name archived under %doc_saved_name.", 
+		array('%doc_name' => $filename, '%doc_saved_name' => $destname), WATCHDOG_NOTICE) ;
+}
+
+function meeting_minutes_feature_token_list($type = 'all') {
+	$token = array() ; 
+	$tokens['meeting_minutes_feature']['meetingminutes-document-custom-name'] = t('Document custom name based on meeting date.') ;
+	$tokens['meeting_minutes_feature']['meetingminutes-document-custom-name-with-note'] = t('Document custom name based on meeting date and special note fields.') ;
+	return $tokens ;
+}
+
+function meeting_minutes_feature_token_values($type, $object = NULL) {
+	$tokens['meetingminutes-document-custom-name'] = '' ;
+	$tokens['meetingminutes-document-custom-name-with-note'] = '' ;
+	if ($type == 'meeting-minutes' || $type == 'node' || $type == 'all') {
+		if ($object != NULL) {
+			$committee_code = $object->field_committee[0]['value'] ;
+			$meeting_date = date('Y-m-d', strtotime($object->field_meeting_date[0]['value'])) ;
+			$special_note = trim($object->field_special_note[0]['value']) ;
+			
+			$tokens['meetingminutes-document-custom-name'] = "{$committee_code}-{$meeting_date}" ;
+			$tokens['meetingminutes-document-custom-name-with-note'] = "{$committee_code}-{$meeting_date}" ;
+			if (!empty($special_note)) {
+				$tokens['meetingminutes-document-custom-name-with-note'] .= "-{$special_note}" ;				
+			}
+		}
+	}
+	return $tokens ;
+}

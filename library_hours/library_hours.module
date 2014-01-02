@@ -1,0 +1,1289 @@
+<?php
+
+function library_hours_init() {
+	//drupal_add_js(drupal_get_path('module', 'library_hours') . '/firebug-lite.js') ;
+	drupal_add_css(drupal_get_path('module', 'library_hours') . '/css/library_hours.css') ;
+	_library_hours_get_libraries_vid() ;
+	_library_hours_get_terms_vid() ;
+	require_once (dirname(__FILE__) . '/library_banner_notice/library_banner_notice.module') ;
+}
+
+function library_hours_perm() {
+	
+	$perms = array(
+		'administer library hours', 
+		'create library hours', 
+		'administer banner notice'
+	) ;
+	
+	$voc_ids = _get_library_hours_vocabulary_ids() ;
+	$tree = taxonomy_get_tree($voc_ids['vid_lib']) ;
+	
+	foreach($tree as $vitem) {
+		$perms[] = t('access !library', array('!library' => $vitem->name)) ;					
+	}
+	
+	return $perms ;
+}
+
+function library_hours_theme() {
+	return array(
+		'library_hours_daterange_listing' => array (
+			'arguments' => array('form' => array())
+		),
+		'library_hours_daterange_view' => array (
+			'arguments' => array('daterange' => NULL, 'timeframes' => NULL)
+		),
+	) ;
+}
+
+function library_hours_node_info() {
+	return array (
+		'library_hours' => array(
+			'name' => t('Library Hours'),
+			'module' => 'library_hours',
+			'description' => t('Manage Hours for a library'),
+			'has_title' => TRUE,
+			'title_label' => t('Library\'s name'),
+			'has_body' => FALSE,
+			'locked' => TRUE
+		),
+		'banner_notice' => array(
+			'name' => t('Banner Notice'),
+			'module' => 'library_banner_notice',
+			'description' => t('Library Hours Webpage Warning System'),
+			'has_title' => TRUE,
+			'title_label' => t('Heading'),
+			'has_body' => TRUE,
+			'body_label' => 'Message',
+			'locked' => TRUE
+		)
+	) ;
+}
+
+function library_hours_form($node) {
+	$type = node_get_types('type', $node) ;
+	
+	$form['title'] = array(
+		'#type' => 'textfield',
+		'#title' => check_plain($type->title_label),
+		'#required' => TRUE,
+		'#default_value' => $node->title,
+		'#weight' => -5,
+		'#maxlength' => 255,
+	) ;
+	
+	$form['dates'] = array(
+		'#title' => t('Dates'),
+		'#type' => 'fieldset',
+		'#description' => t('This contains start and end dates for this term'),
+		'#weight' => -2,
+	) ;
+	
+	$defaultDate = array(
+		'month' => format_date(time(), 'custom', 'n'),
+		'day' => format_date(time(), 'custom', 'j'),
+		'year' => format_date(time(), 'custom', 'Y'),
+	) ;
+	
+	$form['dates']['start'] = array(
+		'#title' => t('Start Date'),
+		'#type' => 'date',
+		'#description' => t('Set Start Date'),
+		'#default_value' => isset($node->start) ? $node->start : $defaultDate ,		
+	) ;
+	
+	$form['dates']['end'] = array(
+		'#title' => t('End Date'),
+		'#type' => 'date',
+		'#description' => t('Set End Date'),
+		'#default_value' => isset($node->end) ? $node->end : $defaultDate ,		
+	) ;
+	
+	return $form ;
+}
+
+function library_hours_menu() {
+	$items['node/%node/daterange/add'] = array (
+		'title' => 'Add Date Range',
+		'page callback' => 'library_hours_daterange',
+		'page arguments' => array(1),
+		'access callback' => 'library_hours_user_access',
+		'access arguments' => array(1),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'library_hours.pages.inc'
+	) ;
+	
+	$items['node/%node/holidays'] = array (
+		'title' => 'Holidays',
+		'page callback' => 'library_hours_holidays',
+		'page arguments' => array(1),
+		'access callback' => 'library_hours_user_access',
+		'access arguments' => array(1),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'library_hours.pages.inc'
+	) ;
+	
+	$items['node/%node/holidays/delete/%library_hours_holiday'] = array(
+		'title' => 'Delete Holiday Date',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('library_hours_holiday_confirm_delete',1,4),
+		'access callback' => 'library_hours_user_access',
+		'access arguments' => array(1),
+		'type' => MENU_CALLBACK,
+		'file' => 'library_hours.pages.inc',
+	) ;
+	
+	$items['node/%node/daterange/edit/%library_hours_daterange'] = array(
+		'title' => 'Edit Date Range',
+		'page callback' => 'library_hours_daterange_edit',
+		'page arguments' => array(1,4),
+		'access callback' => 'library_hours_user_access',
+		'access arguments' => array(1),
+		'type' => MENU_CALLBACK,
+		'file' => 'library_hours.pages.inc',
+	) ;
+	
+	$items['node/%node/daterange/delete/%library_hours_daterange'] = array(
+		'title' => 'Delete Date Range',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('library_hours_daterange_confirm_delete',1,4),
+		'access callback' => 'library_hours_user_access',
+		'access arguments' => array(1),
+		'type' => MENU_CALLBACK,
+		'file' => 'library_hours.pages.inc',
+	) ;
+	
+	$items['library_hours/timeframe/js'] = array (
+		'title' => 'Javascript Time Frame Form',
+		'page callback' => 'timeframe_more_js',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'library_hours.pages.inc',
+	) ;
+	
+	$items['library_hours/daterange/getview_js'] = array (
+		'title' => 'Javascript Date Range View Display',
+		'page callback' => 'daterange_getview_js',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK
+	) ;
+	
+	$items['library_hours'] = array(
+		'title' => 'Library Hours',
+		'page callback' => 'library_hours_listing',
+		'access callback' => 'library_hours_user_access',
+		/*'access arguments' => array('authenticated user'),*/
+		'type' => MENU_NORMAL_ITEM
+	) ;
+	
+	/*
+	$items['library_hours/%node'] = array(
+		'title' => 'Library Hours',
+		'page callback' => 'library_hours_node_view',
+		'page arguments' => array(1),
+		'access callback' => 'library_hours_user_access',
+		'access arguments' => array(1),
+		'type' => MENU_NORMAL_ITEM
+	) ;
+	*/
+	
+	return $items ;
+}
+
+function library_hours_access($op, $node) {
+	switch($op) {
+		case 'create':
+			return user_access('create library hours') ;
+			break ;
+			
+		case 'view':
+			return library_hours_user_access($node) ;
+			break ;
+			
+		default:
+			return NULL ;
+			break ;
+	}
+}
+
+function library_hours_user($op, $edit, $account, $category = null) {
+	switch ($op) {
+		case 'categories':
+			return array(
+				array(
+					'name' => 'library_hours_access',
+					'title' => t('Library Hours Access'),
+					'weight' => 5,
+					'access callback' => 'user_access',
+					'access arguments' => array('administer users'), 
+				)
+			) ;
+			break ;
+			
+		case 'form':
+			if ($category == 'library_hours_access') {
+				$voc_ids = _get_library_hours_vocabulary_ids() ;
+				$tree = taxonomy_get_tree($voc_ids['vid_lib']) ;
+				
+				$form = array() ;
+				
+				$selected_permissions = array() ;
+				$result = db_query('SELECT tid, uid FROM {library_hours_access} WHERE uid=%d', $account->uid) ;
+				while ($access = db_fetch_object($result)) {
+					$selected_permissions[$access->tid] = $access->tid ;
+				}
+				
+				$options = array() ;
+				foreach($tree as $vitem) {
+					$options[$vitem->tid] = t('access !library', array('!library' => $vitem->name)) ;					
+				}
+				
+				$form['permissions'] = array(
+					'#title' => t('Library Hours Permissions'),
+					'#type' => 'checkboxes',
+					'#description' => (t('Please note if any of these permissions apply to !username.', array('!username' => $account->name))),
+					'#options' => $options,
+					'#default_value' => $selected_permissions,
+				);
+				
+				return $form ;
+			}
+			break ;
+			
+		case 'submit':
+			if ($category == 'library_hours_access') {
+				db_query('DELETE FROM {library_hours_access} WHERE uid=%d', $account->uid) ;
+				foreach ($edit['permissions'] as $key => $value) {
+					if (is_numeric($key) && ($value != 0)) {
+						$rec = new stdClass() ;
+						$rec->tid = $key ;
+						$rec->uid = $account->uid ;
+						drupal_write_record('library_hours_access', $rec) ;
+					}
+				}
+			}
+			break ;
+	}
+}
+
+function library_hours_insert($node) {
+	if ($node->type == 'library_hours')  {
+		$rec = new stdClass() ;
+		$rec->nid = $node->nid ;
+		$rec->startDate = date('Y-m-d H:i:', 
+			mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year'])) ;
+		$rec->endDate = date('Y-m-d H:i:', 
+			mktime(0,0,0,$node->end['month'],$node->end['day'],$node->end['year'])) ;
+		
+		drupal_write_record('library_hours', $rec) ;
+	}	
+}
+
+function library_hours_xmlrpc() {
+	$methods['library_hours.getAvailableLibraries'] = 'xmls_library_hours_available_libraries' ;
+	$methods['library_hours.getAvailableTerms'] = 'xmls_library_hours_available_terms' ;
+	$methods['library_hours.getLibraryHours'] = 'xmls_library_hours_get_library_hours' ;
+	$methods['library_hours.getOperationHours'] = 'xmls_library_hours_get_operation_hours' ;
+	$methods['library_hours.getHolidays'] = 'xmls_library_hours_get_holidays' ;
+	$methods['library_hours.getBannerNotices'] = 'xmls_library_hours_get_banner_notices' ;
+	$methods['library_hours.getHoursBlock'] = 'xmls_library_hours_get_hours_block' ;
+	return $methods ;
+}
+
+function xmls_library_hours_available_libraries() {
+	$libs = array() ;
+	/*$ids = _get_library_hours_vocabulary_ids() ;
+
+	$result = db_query("SELECT tid, name FROM {term_data} WHERE vid = %d", $ids['vid_lib']) ;
+	while ($l = db_fetch_object($result)) {
+		$libs[$l->tid] = check_plain($l->name) ;			
+	}*/
+	
+	$voc_ids = _get_library_hours_vocabulary_ids() ;
+	$tree = taxonomy_get_tree($voc_ids['vid_lib']) ;
+	
+	foreach ($tree as $t) {
+		if ($voc_t->depth == 0) {
+			$lib = array() ;
+			$children = taxonomy_get_children($t->tid, $t->vid) ;
+			if ($children) {
+				foreach ($children as $child) {
+					$lib[$child->tid] = check_plain($child->name) ;
+				}
+			}
+			
+			$libs[$t->tid] = empty($lib) ? check_plain($t->name) : array(
+				'name' => check_plain($t->name),
+				'children' => $lib,
+			) ;
+		}
+	}
+	
+	return $libs ;
+}
+
+function xmls_library_hours_available_terms() {
+	$libs = array() ;
+	$ids = _get_library_hours_vocabulary_ids() ;
+
+	$result = db_query("SELECT tid, name FROM {term_data} WHERE vid = %d", $ids['vid_term']) ;
+	while ($l = db_fetch_object($result)) {
+		$libs[$l->tid] = check_plain($l->name) ;			
+	}
+	
+	return $libs ;
+}
+
+function xmls_library_hours_get_library_hours($library_id, $term_id = NULL, $date = NULL) {
+	if (!is_numeric($library_id)) {
+		return xmlrpc_error (1, t('Library ID and Term ID need to be specified.')) ;
+	}
+	
+	if (($date != NULL) && !is_numeric($date)) {
+		return xmlrpc_error (2, t('Date must be a Unix timestamp (numeric value)')) ;
+	}
+	
+	if ($term_id == NULL) {
+		
+	}
+	
+	if ($date == NULL) {
+		$date = time() ;		
+	}
+	
+	$lib_xml = $lib_obj = NULL ;
+	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and') ;
+	while ($lib = db_fetch_object($libs)) {
+		$lib_obj = $lib ;		
+	}
+	
+	if ($lib_obj == NULL) {
+		return xmlrpc_error (3, t('Unable to locate an entry with submitted values.')) ;
+	}
+	
+	$lib_xml = simplexml_load_string('<library_hours name="' . check_plain($lib_obj->title) . '"/>') ;
+	
+	# set today's hours
+	$today = _determine_library_hours_for_specific_date($library_id, $term_id, date('Y-m-d', $date)) ;
+	$lib_xml->addAttribute('today', $today) ;
+	
+	# load term start and end dates
+	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = %d", $lib_obj->nid) ;
+	
+	if ($result) {
+		$result_data = db_fetch_object($result) ;
+		$termDates = date('F j', strtotime($result_data->startDate)) . ' - ' . date('F j, Y', strtotime($result_data->endDate)) ;
+		$lib_xml->addAttribute('term_dates', $termDates) ;	
+
+		# stop if requested library date range is in past
+		$library_end_date = strtotime($result_data->endDate) ;
+		if (time() > $library_end_date) {
+			return xmlrpc_error (4, t('No hours defined for specified period.')) ;
+		}
+	}
+	
+	$xml_ranges = $lib_xml->addChild('ranges') ;
+	//$result = db_query("SELECT * FROM {dateranges} dt WHERE dt.nid = %d ORDER BY dt.startDate ASC", $lib_obj->nid) ;
+	/*
+	$sql = "SELECT * FROM 
+			(
+				(SELECT * FROM {dateranges} dt WHERE dt.nid = %d)
+				UNION
+				(SELECT * FROM {dateranges} dt 
+					WHERE target='banner' 
+					AND (DATE_FORMAT(NOW(), '%%Y-%%m-%%d') BETWEEN startDate and endDate)
+					AND dt.nid IN (SELECT nid FROM {library_hours_library_notices} ln WHERE ln.tid = $library_id))
+			) t
+			ORDER BY t.startDate ASC" ;
+	*/
+	
+
+	$sql = "SELECT * FROM 
+			(
+				(SELECT * FROM dateranges dt WHERE dt.nid = %d)
+				UNION
+				(SELECT * FROM dateranges dt 
+					WHERE target='banner' 
+					AND (
+						(DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') BETWEEN startDate and endDate)
+						OR
+						(startDate = endDate AND DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') = endDate)
+					)
+					AND dt.nid IN (SELECT nid FROM library_hours_library_notices ln WHERE ln.tid = $library_id))
+			) t
+			ORDER BY t.startDate ASC" ;
+	
+	$result = db_query($sql, $lib_obj->nid) ;
+	
+	while ($dt = db_fetch_object($result)) {
+		$label = $endDate = '' ;
+		if (!$dt->hideLabel) {
+			$label = check_plain($dt->label) ;
+		}
+		
+		if (date('F j', strtotime($dt->startDate)) != date('F j', strtotime($dt->endDate))) {
+			$endDate = date('F j', strtotime($dt->endDate)) ;
+		}
+		
+		$result2 = null ;
+		if ($dt->target == 'banner') {
+			$req = 'SELECT * 
+					FROM timeframes tf, library_hours_library_notices ln 
+					WHERE ln.tfid = tf.tid AND did = %d AND ln.tid = %d 
+					ORDER BY tf.tid ASC' ;
+			$result2 = db_query($req, $dt->did, $library_id) ;
+		}
+		else {
+			$result2 = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $dt->did) ;
+		}
+		
+		if (db_affected_rows()) {
+			$xml_range = $xml_ranges->addChild('range') ;
+			$xml_range->addAttribute('label', $label) ;
+			$xml_range->addAttribute('startDate', date('F j', strtotime($dt->startDate))) ;
+			$xml_range->addAttribute('endDate', $endDate) ;
+			
+			//$result2 = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $dt->did) ;
+			while ($timeframe = db_fetch_object($result2)) {
+				$xml_timeframe = $xml_range->addChild('timeframe') ;
+				
+				$days = '' ;
+				if (empty($timeframe->altText)) {
+					$days .= date('l', strtotime($timeframe->startDay)) ;
+					if ($timeframe->endDay != 'NaN') { 
+						$days .= ' - ' . date('l', strtotime($timeframe->endDay)) ;
+					}
+				}
+				else {
+					$days .= check_plain($timeframe->altText) ;
+				}
+				
+				$times = '' ;
+				if (!$timeframe->isClosed) {
+					$end_time = date('g:i a', strtotime($timeframe->endTime)) ;
+					$times .= date('g:i a', strtotime($timeframe->startTime)) . ' - ' . (($end_time == '12:00 am') ? 'Midnight' : $end_time) ;
+				}
+				else {
+					$times .= 'CLOSED' ;
+				}
+				
+				$xml_timeframe->addChild('days', $days) ;
+				$xml_timeframe->addChild('times', $times) ;
+			}
+		}
+	}
+	
+	return $lib_xml->asXML() ;
+}
+
+function xmls_library_hours_get_operation_hours($library_id, $term_id, $date = NULL, $shorten = false) {
+	if (!is_numeric($library_id) || !is_numeric($term_id)) {
+		return xmlrpc_error (1, t('Library ID and Term ID need to be specified.')) ;
+	}
+	
+	if (($date != NULL) && !is_numeric($date)) {
+		return xmlrpc_error (2, t('Date must be a Unix timestamp (numeric value)')) ;
+	}
+	
+	if ($date == NULL) {
+		$date = time() ;
+	}
+	
+	return _determine_library_hours_for_specific_date($library_id, $term_id, date('Y-m-d', $date), $shorten) ;
+}
+
+function xmls_library_hours_get_hours_block($library_id, $term_id, $date = NULL, $shorten = false) {
+	if (!is_numeric($library_id) || !is_numeric($term_id)) {
+		return xmlrpc_error (1, t('Library ID and Term ID need to be specified.')) ;
+	}
+	
+	if (($date != NULL) && !is_numeric($date)) {
+		return xmlrpc_error (2, t('Date must be a Unix timestamp (numeric value)')) ;
+	}
+	
+	if ($date == NULL) {
+		$date = time() ;
+	}
+	
+	$date_timestamp = strtotime(date('Y-m-d', $date)) ;
+	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and') ;
+	$lib = db_fetch_object($libs) ;
+	
+	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = %d", $lib->nid) ;
+	if (!$result)
+		return FALSE ;
+	
+	$result_data = db_fetch_object($result) ;
+	$lib_term_start_date_timestamp = strtotime($result_data->startDate) ;
+	$lib_term_end_date_timestamp = strtotime($result_data->endDate) ;
+	// date must be between start date and end date
+	if (($lib_term_start_date_timestamp > $date_timestamp) || ($lib_term_end_date_timestamp < $date_timestamp))
+		return FALSE ; 
+		
+	$closest_date_range = NULL ;	
+	
+	$sql = "SELECT * FROM 
+		(
+			(SELECT 
+				dt.*, 
+				(SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
+				FROM {dateranges} dt WHERE dt.nid = %d)
+			UNION
+			(SELECT 
+				dt.*, (SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
+				FROM {dateranges} dt 
+				WHERE target='banner' 
+				AND (
+					(DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') BETWEEN startDate and endDate)
+					OR
+					(startDate = endDate AND DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') = endDate)
+				)
+				AND dt.nid IN (SELECT nid FROM {library_hours_library_notices} ln WHERE ln.tid = $library_id))
+		) t
+		ORDER BY t.startDate ASC" ;
+	
+	$result2 = db_query($sql, $lib->nid) ;
+	while ($dt = db_fetch_object($result2)) {
+		$date_range_start_date = strtotime($dt->startDate) ;
+		$date_range_end_date = strtotime($dt->endDate) ;
+		if (($date_range_end_date >= $date_timestamp) && ($date_range_start_date <= $date_timestamp)) {
+			# exclude date range if timeframe count = 0 (probably for banner notice)
+			if (($dt->tfcount == 0) && ($dt->target == 'banner')) 
+				continue ;
+				
+			$closest_date_range = $dt ;
+		}
+	}
+	
+	if ($closest_date_range == NULL)
+		return FALSE ;
+
+	$lib_hours_block_xml = simplexml_load_string('<library_hours_block name="' . check_plain($closest_date_range->label) . '"/>') ;
+	$result3 = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $closest_date_range->did) ;
+	while ($timeframe = db_fetch_object($result3)) {
+		$xml_timeframe = $lib_hours_block_xml->addChild('timeframe') ;
+	
+		$days = '' ;
+		if (empty($timeframe->altText)) {
+			$days .= date('D', strtotime($timeframe->startDay)) ;
+			if ($timeframe->endDay != 'NaN') { 
+				$days .= ' - ' . date('D', strtotime($timeframe->endDay)) ;
+			}
+		}
+		else {
+			$days .= check_plain($timeframe->altText) ;
+		}
+		
+		$times = '' ;
+		if (!$timeframe->isClosed) {
+			if ($shorten) {
+				$start_time = '' ;
+				if (date('i', strtotime($timeframe->startTime)) == '00') {
+					$start_time = date('ga', strtotime($timeframe->startTime)) ;
+				} else {
+					$start_time = date('g:ia', strtotime($timeframe->startTime)) ;
+				}
+				
+				$end_time = '' ;
+				if (date('i', strtotime($timeframe->endTime)) == '00') {
+					$end_time = date('ga', strtotime($timeframe->endTime)) ;
+				} else {
+					$end_time = date('g:ia', strtotime($timeframe->endTime)) ;
+				}
+				
+				if ($end_time == '12am') {
+					$end_time = 'Midnight' ;
+				}
+				
+				$times .= $start_time . ' - ' . $end_time ;
+			}
+			else {
+				$end_time = date('g:i a', strtotime($timeframe->endTime)) ;
+				$times .= date('g:i a', strtotime($timeframe->startTime)) . ' - ' . (($end_time == '12:00 am') ? 'Midnight' : $end_time) ;				
+			}
+		}
+		else {
+			$times .= 'CLOSED' ;
+		}
+		
+		$xml_timeframe->addChild('days', $days) ;
+		$xml_timeframe->addChild('times', $times) ;
+	}
+	
+	return $lib_hours_block_xml->asXML() ;
+}
+
+function xmls_library_hours_get_holidays($library_id, $term_id) {
+	if (!is_numeric($library_id) || !is_numeric($term_id)) {
+		return xmlrpc_error (1, t('Library ID and Term ID need to be specified.')) ;
+	}
+	
+	$holidays = array() ;
+	
+	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and') ;
+	$lib = db_fetch_object($libs) ;
+	
+	if ($lib) {
+		$result = db_query("SELECT label, UNIX_TIMESTAMP(date) as uts FROM {holidays} WHERE nid=%d ORDER BY date ASC", $lib->nid) ;
+		while ($holiday = db_fetch_object($result)) {
+			$holidays[] = array(
+				'label' => check_plain($holiday->label),
+				'date' => $holiday->uts
+			) ;
+		}
+	}
+	return $holidays ;
+}
+
+function xmls_library_hours_get_banner_notices($date) {
+	if (!is_numeric($date)) {
+		return xmlrpc_error (1, t('Invalid date. Unix timestamp required.')) ;
+	}
+	
+	/*
+	if (!is_array($library_ids) || empty($library_ids)) {
+		return xmlrpc_error(2, t('Invalid library IDs.')) ;
+	}
+	*/
+	
+	$date_str = date('Y-m-d H:i:s', $date) ;
+	//$lib_ids_str = join (',', $library_ids) ;
+	/*$sql = "SELECT dr.nid, ln.tid 
+				FROM {dateranges} dr 
+				JOIN {library_hours_library_notices} ln
+				ON dr.nid = ln.nid
+				WHERE ('$date_str' BETWEEN dr.startDate AND dr.endDate)" ;
+				//AND ln.tid IN ($lib_ids_str)" ;
+				*/
+				
+	$sql = "SELECT dr.nid
+				FROM {dateranges} dr 
+				WHERE (
+				('$date_str' BETWEEN dr.startDate AND dr.endDate)
+				OR
+				(dr.startDate = dr.endDate AND '$date_str' = dr.endDate)
+				)
+				AND target='banner'
+				GROUP BY dr.nid" ;
+	
+	$result = db_query($sql) ;
+	
+	$notices = array() ;
+	while ($line = db_fetch_object($result)) {
+		$banner_notice = node_load($line->nid) ;
+		$notice = array(
+			'title' => stripslashes($banner_notice->title),
+			'body' => stripslashes($banner_notice->body),
+		) ;
+		
+		if (!isset($notices[$line->nid])) {
+			$notices[$line->nid] = $notice ;			
+		}
+	}
+	
+	return $notices ;
+}
+
+function _determine_library_hours_for_specific_date($library_id, $term_id, $date, $shorten = false) {
+	if (!is_numeric($library_id) || !is_numeric($term_id)) 
+		return FALSE ;
+	
+	$date_timestamp = strtotime($date) ;
+	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and') ;
+	$lib = db_fetch_object($libs) ;
+	
+	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = %d", $lib->nid) ;
+	if (!$result)
+		return FALSE ;
+	
+	$result_data = db_fetch_object($result) ;
+	$lib_term_start_date_timestamp = strtotime($result_data->startDate) ;
+	$lib_term_end_date_timestamp = strtotime($result_data->endDate) ;
+	// date must be between start date and end date
+	if (($lib_term_start_date_timestamp > $date_timestamp) || ($lib_term_end_date_timestamp < $date_timestamp))
+		return FALSE ; 
+		
+	$closest_date_range = NULL ;	
+	#$result2 = db_query("SELECT * FROM {dateranges} dt WHERE dt.nid = %d ORDER BY dt.startDate ASC", $lib->nid) ;
+	/*
+	$sql = "SELECT * FROM 
+			(
+				(SELECT * FROM {dateranges} dt WHERE dt.nid = %d)
+				UNION
+				(SELECT * FROM {dateranges} dt 
+					WHERE target='banner' 
+					AND (DATE_FORMAT(NOW(), '%%Y-%%m-%%d') BETWEEN startDate and endDate)
+					AND dt.nid IN (SELECT nid FROM {library_hours_library_notices} ln WHERE ln.tid = $library_id))
+			) t
+			ORDER BY t.startDate ASC" ;
+	*/
+	$sql = "SELECT * FROM 
+		(
+			(SELECT 
+				dt.*, 
+				(SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
+				FROM {dateranges} dt WHERE dt.nid = %d)
+			UNION
+			(SELECT 
+				dt.*, (SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
+				FROM {dateranges} dt 
+				WHERE target='banner' 
+				AND (
+					(DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') BETWEEN startDate and endDate)
+					OR
+					(startDate = endDate AND DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') = endDate)
+				)
+				AND dt.nid IN (SELECT nid FROM {library_hours_library_notices} ln WHERE ln.tid = $library_id))
+		) t
+		ORDER BY t.startDate ASC" ;
+	
+	$result2 = db_query($sql, $lib->nid) ;
+	while ($dt = db_fetch_object($result2)) {
+		$date_range_start_date = strtotime($dt->startDate) ;
+		$date_range_end_date = strtotime($dt->endDate) ;
+		if (($date_range_end_date >= $date_timestamp) && ($date_range_start_date <= $date_timestamp)) {
+			# exclude date range if timeframe count = 0 (probably for banner notice)
+			if (($dt->tfcount == 0) && ($dt->target == 'banner')) 
+				continue ;
+				
+			$closest_date_range = $dt ;
+		}
+	}
+	
+	if ($closest_date_range == NULL)
+		return FALSE ;
+		
+	// check holidays dates 
+	$res = db_query("SELECT date FROM {holidays} WHERE nid = %d", $lib->nid) ;
+	while ($holiday_date = db_fetch_object($res)) {
+		$holiday_date_timestamp = strtotime($holiday_date->date) ;
+		if ($date_timestamp == $holiday_date_timestamp) {
+			return 'CLOSED' ;
+		}
+	}
+	
+
+	$date_timeframe = NULL ;
+	$date_number = date('N', $date_timestamp) ;
+	
+	$result3 = null ;
+	if ($closest_date_range->target == 'banner') {
+		$req = 'SELECT * 
+					FROM timeframes tf, library_hours_library_notices ln 
+					WHERE ln.tfid = tf.tid AND did = %d AND ln.tid = %d 
+					ORDER BY tf.tid ASC' ;
+		$result3 = db_query($req, $closest_date_range->did, $library_id) ;
+	}
+	else {
+		$result3 = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $closest_date_range->did) ;
+	}
+	
+	while ($timeframe = db_fetch_object($result3)) {
+		$start_day_number = date('N', strtotime($timeframe->startDay)) ;
+		$end_day_number = date('N', strtotime($timeframe->endDay)) ;
+		if ($timeframe->endDay != 'NaN') { // period
+			if (($start_day_number <= $date_number) && ($end_day_number >= $date_number)) {
+				$date_timeframe = $timeframe ;
+			}
+		}
+		else { // day
+			if ($date_number == $start_day_number) {
+				$date_timeframe = $timeframe ;
+			}
+		}
+	}
+	
+	if ($date_timeframe != NULL) {
+		$times = '' ;
+		if (!$date_timeframe->isClosed) {
+			//$end_time = date('g:i a', strtotime($date_timeframe->endTime)) ;
+			//$times .= date('g:i a', strtotime($date_timeframe->startTime)) . ' - ' . (($end_time == '12:00 am') ? 'Midnight' : $end_time) ;
+			$end_time = _get_operation_hours_str(strtotime($date_timeframe->endTime), $shorten) ;
+			$times .= _get_operation_hours_str(strtotime($date_timeframe->startTime), $shorten) . ' - ' . ((($end_time == '12:00 am')||($end_time == '12am')) ? 'Midnight' : $end_time) ;
+		}
+		else {
+			$times .= 'CLOSED' ;
+		}
+		return $times ;
+	} 
+		
+	return FALSE ;
+}
+
+function _get_operation_hours_str($date, $shorten = false) {
+	if ($shorten) {
+		if (date('i', $date) == '00') {
+			return date('ga', $date) ;
+		}
+		return date('g:ia', $date) ;
+	}
+	
+	return date('g:i a', $date) ;
+}
+
+function _get_library_hours_vocabulary_ids() {
+	$voc_list = taxonomy_get_vocabularies('library_hours') ;
+	$ids = array('vid_lib' => NULL, 'vid_term' => NULL) ;
+	
+	foreach($voc_list as $voc) {
+		if (($voc->module == 'library_hours') && ($voc->name == 'Libraries')) {
+			$ids['vid_lib'] = $voc->vid ;
+		}
+		if (($voc->module == 'library_hours') && ($voc->name == 'Terms')) {
+			$ids['vid_term'] = $voc->vid ;
+		}
+	}
+	
+	return $ids ;
+}
+
+function _has_access_to_at_least_one_library($uid) {
+	$result = db_query("SELECT COUNT(id) as count FROM {library_hours_access} WHERE uid=%d", $uid) ;
+	$data = db_fetch_object($result) ;
+	return ($data->count > 0) ;	
+}
+
+function _has_access_to_specific_library($uid, $tid) {
+	$result = db_query("SELECT COUNT(id) as count FROM {library_hours_access} WHERE uid=%d AND tid=%d", $uid, $tid) ;
+	$data = db_fetch_object($result) ;
+	return ($data->count == 1) ;	
+}
+
+function library_hours_user_access($node = NULL) {
+	$vids = _get_library_hours_vocabulary_ids() ;
+	// check if user has permission for a specific library
+	if ($node != NULL) {
+		
+		if ($node->type != 'library_hours') {
+			return FALSE ;		
+		}
+		
+		$terms = taxonomy_node_get_terms_by_vocabulary($node, $vids['vid_lib']) ;
+		$voc = array_shift($terms) ;
+		
+		// return true if custom access was set on user profile page
+		global $user ;
+		if (_has_access_to_specific_library($user->uid, $voc->tid)) {
+			return TRUE ;
+		}
+		
+		$perm = "access " . $voc->name ;
+		return user_access($perm) ;
+	}
+	// check if user has permission for any library
+	else {
+		$has_access = FALSE ;
+		
+		// return true if custom access was set on user profile page
+		global $user ;
+		if (_has_access_to_at_least_one_library($user->uid)) {
+			return TRUE ;
+		}
+		
+		//$terms = taxonomy_node_get_terms_by_vocabulary($node, $vids['vid_lib']) ;
+		$result = db_query("SELECT tid, name FROM {term_data} WHERE vid = %d", $vids['vid_lib']) ;
+		while ($l = db_fetch_object($result)) {
+			$perm = "access " . $l->name ;
+			if (user_access($perm)) { 
+				$has_access = TRUE ;
+				break ;
+			}			
+		}
+		
+		return $has_access ;
+	}
+}
+
+function library_hours_node_view ($node) {
+	return node_page_view($node) ;
+}
+
+function daterange_getview_js() {
+	$url = $_POST['url'] ;
+	if (!preg_match('@/node/(\d+)/view/daterange/(\d+)@', $url, $matches)) {
+		return ;
+	}
+	
+	$nid = $matches[1] ;
+	$did = $matches[2] ;
+	
+	$result = db_query('SELECT startDate, endDate FROM dateranges WHERE did = %d', $did) ;
+	if (!$result) {
+		return ;
+	}
+	
+	$timeframes = array() ;
+	$daterange = db_fetch_object($result) ;
+	
+	$result = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $did) ;
+	while ($timeframe = db_fetch_object($result)) {
+		$timeframes[] = $timeframe ;		
+	}
+	
+	drupal_set_header('Content-Type: text/plain; charset: utf-8') ;
+	print theme('library_hours_daterange_view', $daterange, $timeframes) ;
+}
+
+function library_hours_nodeapi(&$node, $op, $teaser, $page) {
+	
+	global $user ;
+	
+	switch($op) {
+		
+		case 'load':
+			if ($node->type != 'library_hours') 
+				break ;
+
+			$result = db_query("SELECT nid, startDate, endDate FROM {library_hours} WHERE nid = %d", $node->nid) ;
+			if ($result) {
+				$data = db_fetch_object($result) ;
+				
+				$startTime =  strtotime($data->startDate) ;
+				$node->start = array(
+					'month' => date("n", $startTime),
+					'day' => date("j", $startTime),
+					'year' => date("Y", $startTime),
+				) ;
+				
+				$endTime =  strtotime($data->endDate) ;
+				$node->end = array(
+					'month' => date("n", $endTime),
+					'day' => date("j", $endTime),
+					'year' => date("Y", $endTime),
+				) ;
+
+			}
+			break ;
+			
+		case 'update':
+			if ($node->type == 'library_hours')  {
+				$rec = new stdClass() ;
+				$rec->nid = $node->nid ;
+				$rec->startDate = date('Y-m-d H:i:', 
+					mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year'])) ;
+				$rec->endDate = date('Y-m-d H:i:s', 
+					mktime(23,59,59,$node->end['month'],$node->end['day'],$node->end['year'])) ;
+				
+				drupal_write_record('library_hours', $rec, 'nid') ;
+			}
+			break ;
+		
+		case 'view':
+			// abort if user is not login or if not page display
+			if ($user->uid == 0 || !$page) 
+				break ;
+
+			// We want to alter library_hours only
+			if ($node->type != 'library_hours') 
+				break ;
+				
+			$node->content['library_hours_daterange_listing'] = array (
+				'#value' => drupal_get_form('library_hours_daterange_listing', $node)
+			) ;
+			
+			$startDate = mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year']) ;
+			$endDate = mktime(0,0,0,$node->end['month'],$node->end['day'],$node->end['year']) ;
+			$node->content['library_hours_term_dates'] = array(
+				'#value' => date('F j', $startDate) . ' - ' . date('F j, Y', $endDate)  
+			) ;
+			
+			// add Library Hours to bread crumbs
+			$breadcrumb = drupal_get_breadcrumb() ;
+			$breadcrumb[] = "<a href=\"/library_hours\">Library Hours</a>" ;
+			drupal_set_breadcrumb($breadcrumb) ;
+			
+			break ;
+			
+		case 'delete':
+				$dt_result = db_query("SELECT did FROM {dateranges} WHERE nid = %d", $node->nid) ;
+				while($dt = db_fetch_object($dt_result)) {
+					db_query("DELETE FROM {timeframes} WHERE did = %d", $dt->did) ;
+					db_query("DELETE FROM {dateranges} WHERE did = %d", $dt->did) ;
+				}
+				watchdog('library_hours', 
+					'Time Frames and Date Ranges for node %nid deleted.',
+					array('%nid' => $node->nid),
+					WATCHDOG_NOTICE
+				) ;
+				
+				// delete any associated holidays
+				db_query("DELETE FROM {holidays} WHERE nid=%d", $node->nid) ;
+				
+				if ($node->type == 'banner_notice') {
+					db_query("DELETE FROM {library_hours_library_notices} WHERE nid=%d", $node->nid) ;
+				}
+			break ;
+	}
+}
+
+function library_hours_daterange_listing($form_state, $node) {
+	
+	$form = array('#tree' => TRUE) ;
+	$result = db_query("SELECT * FROM {dateranges} dt WHERE dt.nid = %d ORDER BY dt.startDate ASC", $node->nid) ;
+	while ($dt = db_fetch_object($result)) {
+		//$form[$dt->did]['#daterange'] = (Array) $dt ;
+		$label = check_plain($dt->label) ;
+		if ($dt->hideLabel) {
+			$label .= ' (Hidden)' ;
+		}
+		$form[$dt->did]['label'] = array('#value' => $label) ;
+		$form[$dt->did]['view'] = array('#value' => l(t('View'), "node/{$dt->nid}/view/daterange/{$dt->did}", array('attributes' => array('class' => 'daterange-view-link')))) ;
+		$form[$dt->did]['edit'] = array('#value' => l(t('Edit'), "node/{$dt->nid}/daterange/edit/{$dt->did}")) ;
+		$form[$dt->did]['delete'] = array('#value' => l(t('Delete'), "node/{$dt->nid}/daterange/delete/{$dt->did}")) ;
+	}
+	
+	return $form ;
+}
+
+function library_hours_holiday_load($hid) {
+	$result = db_query("SELECT hid, nid, label, date FROM {holidays} WHERE hid = %d", $hid) ;
+	if (!$result)
+		return FALSE ;
+	
+	$holiday = db_fetch_object($result) ;
+	return $holiday ;
+}
+
+function library_hours_daterange_load($did) {
+	$datarange = array() ;
+	$result = db_query('SELECT * FROM {dateranges} WHERE did = %d', $did) ;
+	if (!$result)
+		return FALSE ;
+	$dt = db_fetch_object($result) ;
+	
+	$daterange['did'] = intval($dt->did) ;
+	$daterange['label'] = check_plain($dt->label) ;
+	$start_date = strtotime($dt->startDate) ;
+	$daterange['start_date'] = array(
+		'month' => intval(date('m', $start_date)),
+		'day' => intval(date('d', $start_date)),
+		'year' => date('Y', $start_date),
+	) ;
+	
+	$end_date = strtotime($dt->endDate) ;
+	$daterange['end_date'] = array(
+		'month' => intval(date('m', $end_date)),
+		'day' => intval(date('d', $end_date)),
+		'year' => date('Y', $end_date),
+	) ;
+	
+	$daterange['hide_label'] = $dt->hideLabel ;
+	
+	$i = 1 ;
+	$rows = array() ;
+	$result = db_query('SELECT * FROM {timeframes} WHERE did = %d ORDER BY tid ASC', $did) ;
+	while ($tf = db_fetch_object($result)) {
+		$start_time = strtotime($tf->startTime) ;
+		$end_time = strtotime($tf->endTime) ;
+		$rows[$i] = array("timeframe_element_{$i}" => array(
+			"start_day_{$i}" => $tf->startDay,
+			"end_day_{$i}" => $tf->endDay,
+			"start_time_{$i}" => ($start_time != 0) ? date('h:i a', $start_time) : '',
+			"end_time_{$i}" => ($end_time != 0) ? date('h:i a', $end_time) : '',
+			"alt_text_{$i}" => $tf->altText,
+			"options_{$i}" => array()
+		)) ;
+		
+		if ($tf->isClosed) {
+			$rows[$i]["timeframe_element_{$i}"]["options_{$i}"][] = "is_closed" ;
+		}
+		$i++ ; 
+	}
+	
+	$daterange['time_frame'] = array('rows' => $rows) ;
+	return $daterange ;
+}
+
+function theme_library_hours_daterange_listing($form) {
+	
+	$opts = array('absolute' => TRUE) ;
+	$view_url = url('library_hours/daterange/getview_js', $opts);
+	
+	drupal_add_js(array('daterange' => array('view_url' => $view_url)), 'setting') ;
+	drupal_add_js(drupal_get_path('module', 'library_hours') . '/js/daterange.js') ;
+		
+	$rows = array() ;
+	foreach(element_children($form) as $key) {
+		if (isset($form[$key]['label'])) {
+			$daterange = &$form[$key] ;
+			
+			$row = array() ;
+			$row[] = drupal_render($daterange['label']) ;
+			$row[] = drupal_render($daterange['view']) ;
+			$row[] = drupal_render($daterange['edit']) ;
+			$row[] = drupal_render($daterange['delete']) ;
+			
+			$rows[] = array('data' => $row/*, 'class' => 'draggable'*/) ;
+		}
+	}
+	
+	if (empty($rows)) {
+		$rows[] = array(array('data' => t('No date ranges available.'), 'colspan' => 4)) ;
+	}
+	
+	$header = array(t('Label'), array('data' => t('Operations'), 'colspan' => 3)) ;
+	return theme('table', $header, $rows) . drupal_render($form) ;
+}
+
+function theme_library_hours_daterange_view($daterange, $timeframes) {
+	$output .= '<tr class="library-hours-daterange-view-container"><td colspan="4">' ;
+	$output .= '<table class="library-hours-daterange-view-content">' ;
+	$output .= '<tr class="header"><td colspan="2">' ;
+	$output .= date('F d', strtotime($daterange->startDate)) ;
+	if ($daterange->startDate != $daterange->endDate) {
+		$output .= ' - ' . date('F d', strtotime($daterange->endDate)) ;
+	}
+	$output .= '</td></tr>' ;
+	foreach ($timeframes as $timeframe) {
+		$output .= '<tr>' ;
+		$output .= '<td width="300">' ;
+		if (empty($timeframe->altText)) {
+			$output .= date('l', strtotime($timeframe->startDay)) ;
+			if ($timeframe->endDay != 'NaN') {
+				$output .= ' - ' . date('l', strtotime($timeframe->endDay)) ;
+			} 
+		}
+		else {
+			$output .= check_plain($timeframe->altText) ;
+		}
+		$output .= '</td>' ;
+		if (!$timeframe->isClosed) {
+			$output .= '<td>' . date('h:i a', strtotime($timeframe->startTime)) . ' - ' . date('h:i a', strtotime($timeframe->endTime)) . '</td>' ;
+		}
+		else {
+			$output .= "<td>CLOSED</td>" ;
+		}
+		$output .= '</tr>' ;		
+	}  
+	$output .= '</table>' ;
+	$output .= '</td></tr>' ;
+	
+	return $output ;
+}
+
+function _library_hours_get_libraries_vid() {
+	$vid = variable_get('library_hours_lib_vocabulary', '') ;
+	if (empty($vid) || is_null(taxonomy_vocabulary_load($vid))) {
+		$lib_vocabulary = array(
+			'name' => t('Libraries'),
+			'multiple' => '0',
+			'required' => '1',
+			'hierarchy' => '1',
+			'relations' => '0',
+			'weight' => 1,
+			'module' => 'library_hours',
+			'description' => t('List of supported Libraries'),
+			'nodes' => array(
+				'library_hours' => 1
+			)
+		) ;
+		
+		taxonomy_save_vocabulary($lib_vocabulary) ;
+		$vid = $lib_vocabulary['vid'] ;
+		variable_set ('library_hours_lib_vocabulary', $vid) ;
+	}
+	return $vid ;
+}
+
+function _library_hours_get_terms_vid() {
+	$vid = variable_get('library_hours_term_vocabulary', '') ;
+	if (empty($vid) || is_null(taxonomy_vocabulary_load($vid))) {
+		$lib_vocabulary = array(
+			'name' => t('Terms'),
+			'multiple' => '0',
+			'required' => '1',
+			'hierarchy' => '1',
+			'relations' => '0',
+			'weight' => 2,
+			'module' => 'library_hours',
+			'description' => t('List of Terms (for library hours)'),
+			'nodes' => array(
+				'library_hours' => 1
+			)
+		) ;
+		
+		taxonomy_save_vocabulary($lib_vocabulary) ;
+		$vid = $lib_vocabulary['vid'] ;
+		variable_set ('library_hours_term_vocabulary', $vid) ;
+	}
+	return $vid ;
+}
+
+function library_hours_listing() {
+	/*
+	$voc_list = taxonomy_get_vocabularies('library_hours') ;
+	$vid_lib = $vid_term = null ;
+	foreach($voc_list as $voc) {
+		if (($voc->module == 'library_hours') && ($voc->name == 'Libraries')) {
+			$vid_lib = $voc->vid ;
+		}
+		if (($voc->module == 'library_hours') && ($voc->name == 'Terms')) {
+			$vid_term = $voc->vid ;
+		}
+	}
+	*/
+	$voc_ids = _get_library_hours_vocabulary_ids() ;
+	$tree = taxonomy_get_tree($voc_ids['vid_lib']) ;
+	
+	if ($voc_ids['vid_lib'] == null) {
+		return t('No library available at this moment.') ;
+	} 
+	
+	$out = '<p>&nbsp</p>' ;
+	foreach($tree as $voc_t) {
+		if ($voc_t->depth == 0) {
+			$output = _get_vocabulary_term_children($voc_ids['vid_term'], $voc_t->tid, $voc_t->name, true) ;
+			if ($output != NULL) {
+				//$out .= '<h3>' . check_plain($voc_t->name) . '</h3>' ;
+				$out .= $output ;
+			}
+			
+			// process service points
+			$children = taxonomy_get_children($voc_t->tid, $voc_t->vid) ;
+			if ($children) {
+				foreach ($children as $child) {
+					$output = _get_vocabulary_term_children($voc_ids['vid_term'], $child->tid, $child->name, true) ;
+					if ($output != NULL) {
+						$out .= '<div style="margin-left:75px;">' . $output . '</div>' ;
+					}					
+				}
+			}
+		}
+	}
+	return $out ;
+}
+
+function _get_vocabulary_term_children($lhTermVocId, $libTermId, $vocTermName, $checkPermission = false) {
+	
+	$nodes = taxonomy_select_nodes(array($libTermId)) ;
+	
+	$rows = array() ;
+	while ($node = db_fetch_object($nodes)) {
+		// get term (aka semester) from terms vocabulary
+		$terms = taxonomy_node_get_terms_by_vocabulary(node_load($node->nid), $lhTermVocId) ;
+		$term = array_shift($terms) ;
+		$row = array()  ;
+		$row[] = array(
+			'data' => t('!term', array('!term' => $term->name)),
+			'width' => 150
+		) ;
+		$row[] = l(t('!title', array('!title' => $node->title)), "node/{$node->nid}") ;
+		$rows[] = array('data' => $row) ;
+	}
+	
+	// Display only if user has access (permission or custom access)
+	if ($checkPermission) {
+		global $user ;
+		if (!_has_access_to_specific_library($user->uid, $libTermId) && !user_access("access $vocTermName")) {
+			return NULL ;
+		}			
+	}
+	
+	if (!empty($rows)) {
+		$out .= '<h3>' . check_plain($vocTermName) . '</h3>' ;
+		return $out . theme('table', array(t('Term'),t('Title')), $rows) ;
+	}
+	
+	return NULL ;		
+}
