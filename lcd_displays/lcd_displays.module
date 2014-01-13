@@ -235,7 +235,7 @@ function lcd_displays_view() {
 
 function theme_lcd_displays_view($data) {
 	# Render annoucements
-	$output = '<p><a href="http://eclipse.hil.unb.ca/LCD/HIL2011/" target="_blank" style="color:#757A00;">VIEW LOBBY DISPLAY</a></p>' ;
+	$output = '<p><a href="http://lcd.lib.unb.ca/hil/" target="_blank" style="color:#757A00;">VIEW LOBBY DISPLAY</a></p>' ;
 	$output .= '<div id="announcements">' ;
 	$output .= '<h2>Announcements</h2>' ;
 		$output .= '<ul class="accordion">' ;
