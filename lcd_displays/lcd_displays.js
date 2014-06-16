@@ -5,7 +5,7 @@ if (Drupal.jsEnabled) {
 		$('.accordion li a.ac_header').click(function() {
 			var panel = $(this).next() ;
 			if (!panel.is(':visible')) {
-				panel.html('<img src="/core/img/loader.gif"/>');
+				panel.html('<img src="//media.lib.unb.ca/core/img/loader.gif"/>');
 			} 
 			$(this).next().slideToggle('slow', function(){
 				if ($(this).is(':visible')) {
