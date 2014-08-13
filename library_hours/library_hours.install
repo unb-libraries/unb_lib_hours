@@ -1,32 +1,32 @@
 <?php
 
 function library_hours_install() {
-	drupal_install_schema('library_hours') ;	
+	drupal_install_schema('library_hours');	
 }
 
 function library_hours_uninstall() {
-	drupal_uninstall_schema('library_hours') ;
+	drupal_uninstall_schema('library_hours');
 	
 	// TODO Uncomment this peace of code before deploy module
-	$lib_vid = variable_get('library_hours_lib_vocabulary', '') ;
-	$term_vid = variable_get('library_hours_term_vocabulary', '') ;
+	$lib_vid = variable_get('library_hours_lib_vocabulary', '');
+	$term_vid = variable_get('library_hours_term_vocabulary', '');
 	
 	if (!empty($lib_vid)) {
-		taxonomy_del_vocabulary($lib_vid) ;		
+		taxonomy_del_vocabulary($lib_vid);		
 	}
 	
 	if (!empty($term_vid)) {
-		taxonomy_del_vocabulary($term_vid) ;		
+		taxonomy_del_vocabulary($term_vid);		
 	}
 
-	variable_del ('library_hours_lib_vocabulary') ;
-	variable_del ('library_hours_term_vocabulary') ;
+	variable_del ('library_hours_lib_vocabulary');
+	variable_del ('library_hours_term_vocabulary');
 	
 	# delete all nodes we created
-	$result = db_query("SELECT nid FROM {node} WHERE type='%s'", 'library_hours') ;
+	$result = db_query("SELECT nid FROM {node} WHERE type='%s'", 'library_hours');
 	if ($result && user_access('administer nodes')) {
 		while($n = db_fetch_object($result)) {
-			node_delete($n->nid) ;
+			node_delete($n->nid);
 		}
 	}
 }
@@ -286,7 +286,7 @@ function library_hours_schema() {
 		),
 	);
 	
-	return $schema ;
+	return $schema;
 }
 
 
@@ -324,13 +324,13 @@ function library_hours_update_6000() {
 		),
 	);
 	
-	$ret = array() ;
+	$ret = array();
 	
 	if (!db_table_exists('library_hours_access')) {
-		db_create_table($ret, 'library_hours_access', $schema['library_hours_access']) ;
+		db_create_table($ret, 'library_hours_access', $schema['library_hours_access']);
 	}
 	
-	return $ret ;
+	return $ret;
 }
 
 function library_hours_update_6001() {
@@ -339,10 +339,10 @@ function library_hours_update_6001() {
 		'not null' => TRUE,
 		'size' => 'tiny',
 		'description' => t('Contains what module daterange belongs to'),
-	) ; 
+	); 
 	
-	$ret = array() ;
-	db_add_field($ret, 'dateranges', 'target', $field) ;
+	$ret = array();
+	db_add_field($ret, 'dateranges', 'target', $field);
 }
 
 function library_hours_update_6002() {
@@ -379,13 +379,13 @@ function library_hours_update_6002() {
 		),
 	);
 	
-	$ret = array() ;
+	$ret = array();
 	
 	if (!db_table_exists('library_hours_library_notices')) {
-		db_create_table($ret, 'library_hours_library_notices', $schema['library_hours_library_notices']) ;
+		db_create_table($ret, 'library_hours_library_notices', $schema['library_hours_library_notices']);
 	}
 	
-	return $ret ;
+	return $ret;
 }
 
 function library_hours_update_6003() {
@@ -395,8 +395,8 @@ function library_hours_update_6003() {
 		'not null' => TRUE,
 		'default' => 0,
 		'description' => t('Used by banner noticed and contains the id of the library related time frame'),
-	) ; 
+	); 
 	
-	$ret = array() ;
-	db_add_field($ret, 'library_hours_library_notices', 'tfid', $field) ;
+	$ret = array();
+	db_add_field($ret, 'library_hours_library_notices', 'tfid', $field);
 }

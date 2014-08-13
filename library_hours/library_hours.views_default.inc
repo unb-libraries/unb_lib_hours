@@ -99,7 +99,7 @@ function library_hours_views_default_views () {
 	  'name' => 'navigation',
 	));
 	
-	$views[$view->name] = $view ;
+	$views[$view->name] = $view;
 	
-	return $views ;
+	return $views;
 }
