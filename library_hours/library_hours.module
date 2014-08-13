@@ -1165,8 +1165,9 @@ function theme_library_hours_daterange_view($daterange, $timeframes) {
 function _library_hours_get_libraries_vid() {
 	$vid = variable_get('library_hours_lib_vocabulary', '');
 	if (empty($vid) || is_null(taxonomy_vocabulary_load($vid))) {
-		$lib_vocabulary = array(
+		$lib_vocabulary = (object) array(
 			'name' => t('Libraries'),
+			'machine_name' => 'libraries',
 			'multiple' => '0',
 			'required' => '1',
 			'hierarchy' => '1',
@@ -1180,8 +1181,8 @@ function _library_hours_get_libraries_vid() {
 		);
 		
 		taxonomy_vocabulary_save($lib_vocabulary);
-		$vid = $lib_vocabulary['vid'];
-		variable_set ('library_hours_lib_vocabulary', $vid);
+		$vid = $lib_vocabulary->vid;
+		variable_set('library_hours_lib_vocabulary', $vid);
 	}
 	return $vid;
 }
@@ -1189,8 +1190,9 @@ function _library_hours_get_libraries_vid() {
 function _library_hours_get_terms_vid() {
 	$vid = variable_get('library_hours_term_vocabulary', '');
 	if (empty($vid) || is_null(taxonomy_vocabulary_load($vid))) {
-		$lib_vocabulary = array(
+		$lib_vocabulary = (object) array(
 			'name' => t('Terms'),
+			'machine_name' => 'terms',
 			'multiple' => '0',
 			'required' => '1',
 			'hierarchy' => '1',
@@ -1204,8 +1206,8 @@ function _library_hours_get_terms_vid() {
 		);
 		
 		taxonomy_vocabulary_save($lib_vocabulary);
-		$vid = $lib_vocabulary['vid'];
-		variable_set ('library_hours_term_vocabulary', $vid);
+		$vid = $lib_vocabulary->vid;
+		variable_set('library_hours_term_vocabulary', $vid);
 	}
 	return $vid;
 }

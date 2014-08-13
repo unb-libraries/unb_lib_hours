@@ -1,9 +1,5 @@
 <?php
 
-function library_hours_install() {
-	drupal_install_schema('library_hours');	
-}
-
 function library_hours_uninstall() {
 	drupal_uninstall_schema('library_hours');
 	
