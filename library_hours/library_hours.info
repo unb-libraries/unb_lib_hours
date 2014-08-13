@@ -1,5 +1,6 @@
-
 name = Library Hours Management
 description = Allows Library Staff to manage libraries hours of operations
 package = UNB Library
-core = 6.x
+version = 7.x-1.00
+core = 7.x
+project status url = http://systems.lib.unb.ca/updates
