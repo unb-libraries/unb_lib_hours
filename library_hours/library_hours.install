@@ -5,22 +5,22 @@ function library_hours_uninstall() {
 	
 	$lib_vid = variable_get('library_hours_lib_vocabulary', '');
 	$term_vid = variable_get('library_hours_term_vocabulary', '');
-	
+
 	if (!empty($lib_vid)) {
-		taxonomy_del_vocabulary($lib_vid);		
+		taxonomy_vocabulary_delete($lib_vid);		
 	}
 	
 	if (!empty($term_vid)) {
-		taxonomy_del_vocabulary($term_vid);		
+		taxonomy_vocabulary_delete($term_vid);		
 	}
 
-	variable_del ('library_hours_lib_vocabulary');
-	variable_del ('library_hours_term_vocabulary');
+	variable_del('library_hours_lib_vocabulary');
+	variable_del('library_hours_term_vocabulary');
 	
 	# delete all nodes we created
-	$result = db_query("SELECT nid FROM {node} WHERE type='%s'", 'library_hours');
+	$result = db_query("SELECT nid FROM {node} WHERE type='%s'", array( 'library_hours' ));
 	if ($result && user_access('administer nodes')) {
-		while($n = db_fetch_object($result)) {
+		foreach ($result as $n) { 
 			node_delete($n->nid);
 		}
 	}
