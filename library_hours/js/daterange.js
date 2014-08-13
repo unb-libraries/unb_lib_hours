@@ -1,4 +1,3 @@
-
 var DateRange = {};
 
 if (Drupal.jsEnabled) {

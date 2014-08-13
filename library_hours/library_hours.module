@@ -1179,7 +1179,7 @@ function _library_hours_get_libraries_vid() {
 			)
 		);
 		
-		taxonomy_save_vocabulary($lib_vocabulary);
+		taxonomy_vocabulary_save($lib_vocabulary);
 		$vid = $lib_vocabulary['vid'];
 		variable_set ('library_hours_lib_vocabulary', $vid);
 	}
@@ -1203,7 +1203,7 @@ function _library_hours_get_terms_vid() {
 			)
 		);
 		
-		taxonomy_save_vocabulary($lib_vocabulary);
+		taxonomy_vocabulary_save($lib_vocabulary);
 		$vid = $lib_vocabulary['vid'];
 		variable_set ('library_hours_term_vocabulary', $vid);
 	}
@@ -1263,7 +1263,7 @@ function _get_vocabulary_term_children($lhTermVocId, $libTermId, $vocTermName, $
 		// get term (aka semester) from terms vocabulary
 		$terms = taxonomy_node_get_terms_by_vocabulary(node_load($node->nid), $lhTermVocId);
 		$term = array_shift($terms);
-		$row = array() ;
+		$row = array();
 		$row[] = array(
 			'data' => t('!term', array('!term' => $term->name)),
 			'width' => 150

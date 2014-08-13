@@ -7,7 +7,6 @@ function library_hours_install() {
 function library_hours_uninstall() {
 	drupal_uninstall_schema('library_hours');
 	
-	// TODO Uncomment this peace of code before deploy module
 	$lib_vid = variable_get('library_hours_lib_vocabulary', '');
 	$term_vid = variable_get('library_hours_term_vocabulary', '');
 	
@@ -45,11 +44,13 @@ function library_hours_schema() {
 			),
 			'startDate' => array(
 				'type' => 'datetime',
+				'mysql_type' => 'DATETIME',
 				'not null' => TRUE,
 				'description' => t('Range Start Date'),
 			),
 			'endDate' => array(
 				'type' => 'datetime',
+				'mysql_type' => 'DATETIME',
 				'not null' => TRUE,
 				'description' => t('Range End Date'),
 			),
@@ -84,11 +85,13 @@ function library_hours_schema() {
 			),
 			'startDate' => array(
 				'type' => 'datetime',
+				'mysql_type' => 'DATETIME',
 				'not null' => TRUE,
 				'description' => t('Range Start Date'),
 			),
 			'endDate' => array(
 				'type' => 'datetime',
+				'mysql_type' => 'DATETIME',
 				'not null' => TRUE,
 				'description' => t('Range End Date'),
 			),
@@ -145,11 +148,13 @@ function library_hours_schema() {
 			),
 			'startTime' => array(
 				'type' => 'datetime',
+				'mysql_type' => 'DATETIME',
 				'not null' => TRUE,
 				'description' => t('Start Time'),
 			),
 			'endTime' => array(
 				'type' => 'datetime',
+				'mysql_type' => 'DATETIME',
 				'not null' => TRUE,
 				'description' => t('End Time'),
 			),
@@ -200,6 +205,7 @@ function library_hours_schema() {
 			),
 			'date' => array(
 				'type' => 'datetime',
+				'mysql_type' => 'DATETIME',
 				'not null' => TRUE,
 				'description' => t('Holiday Date'),
 			),
