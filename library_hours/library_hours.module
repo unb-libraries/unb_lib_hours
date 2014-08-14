@@ -1,7 +1,6 @@
 <?php
 
 function library_hours_init() {
-	//drupal_add_js(drupal_get_path('module', 'library_hours') . '/firebug-lite.js');
 	drupal_add_css(drupal_get_path('module', 'library_hours') . '/css/library_hours.css');
 	_library_hours_get_libraries_vid();
 	_library_hours_get_terms_vid();
@@ -1206,18 +1205,6 @@ function _library_hours_get_terms_vid() {
 }
 
 function library_hours_listing() {
-	/*
-	$voc_list = taxonomy_get_vocabularies('library_hours');
-	$vid_lib = $vid_term = null;
-	foreach($voc_list as $voc) {
-		if (($voc->module == 'library_hours') && ($voc->name == 'Libraries')) {
-			$vid_lib = $voc->vid;
-		}
-		if (($voc->module == 'library_hours') && ($voc->name == 'Terms')) {
-			$vid_term = $voc->vid;
-		}
-	}
-	*/
 	$voc_ids = _get_library_hours_vocabulary_ids();
 	$tree = taxonomy_get_tree($voc_ids['vid_lib']);
 	
