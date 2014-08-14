@@ -319,7 +319,7 @@ function xmls_library_hours_available_terms() {
 	$libs = array();
 	$ids = _get_library_hours_vocabulary_ids();
 
-	$result = db_query("SELECT tid, name FROM {term_data} WHERE vid = %d", $ids['vid_term']);
+	$result = db_query("SELECT tid, name FROM {taxonomy_term_data} WHERE vid = %d", $ids['vid_term']);
 	while ($l = db_fetch_object($result)) {
 		$libs[$l->tid] = check_plain($l->name);			
 	}
@@ -831,15 +831,13 @@ function _get_library_hours_vocabulary_ids() {
 }
 
 function _has_access_to_at_least_one_library($uid) {
-	$result = db_query("SELECT COUNT(id) as count FROM {library_hours_access} WHERE uid=%d", $uid);
-	$data = db_fetch_object($result);
-	return ($data->count > 0);	
+	$result = db_query("SELECT COUNT(id) as count FROM {library_hours_access} WHERE uid=:uid", array(':uid' => $uid));
+	return ($result->fetchColumn( 0 ) > 0);	
 }
 
 function _has_access_to_specific_library($uid, $tid) {
-	$result = db_query("SELECT COUNT(id) as count FROM {library_hours_access} WHERE uid=%d AND tid=%d", $uid, $tid);
-	$data = db_fetch_object($result);
-	return ($data->count == 1);	
+	$result = db_query("SELECT COUNT(id) as count FROM {library_hours_access} WHERE uid=:uid AND tid=:tid", array(':uid'=>$uid, ':tid'=>$tid));
+	return ($result->fetchColumn(0) == 1);
 }
 
 function library_hours_user_access($node = NULL) {
@@ -874,8 +872,8 @@ function library_hours_user_access($node = NULL) {
 		}
 		
 		//$terms = taxonomy_node_get_terms_by_vocabulary($node, $vids['vid_lib']);
-		$result = db_query("SELECT tid, name FROM {term_data} WHERE vid = %d", $vids['vid_lib']);
-		while ($l = db_fetch_object($result)) {
+		$result = db_query("SELECT tid, name FROM {taxonomy_term_data} WHERE vid = :vid", array(':vid' => $vids['vid_lib']));
+		foreach( $result as $l ) {
 			$perm = "access " . $l->name;
 			if (user_access($perm)) { 
 				$has_access = TRUE;
@@ -1241,7 +1239,7 @@ function _get_vocabulary_term_children($lhTermVocId, $libTermId, $vocTermName, $
 	$nodes = taxonomy_select_nodes(array($libTermId));
 	
 	$rows = array();
-	while ($node = db_fetch_object($nodes)) {
+	foreach ($nodes as $node) {
 		// get term (aka semester) from terms vocabulary
 		$terms = taxonomy_node_get_terms_by_vocabulary(node_load($node->nid), $lhTermVocId);
 		$term = array_shift($terms);
