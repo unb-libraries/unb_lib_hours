@@ -207,63 +207,56 @@ function library_hours_access($op, $node) {
 	}
 }
 
-function library_hours_user($op, $edit, $account, $category = null) {
-	switch ($op) {
-		case 'categories':
-			return array(
-				array(
-					'name' => 'library_hours_access',
-					'title' => t('Library Hours Access'),
-					'weight' => 5,
-					'access callback' => 'user_access',
-					'access arguments' => array('administer users'), 
-				)
-			);
-			break;
-			
-		case 'form':
-			if ($category == 'library_hours_access') {
-				$voc_ids = _get_library_hours_vocabulary_ids();
-				$tree = taxonomy_get_tree($voc_ids['vid_lib']);
-				
-				$form = array();
-				
-				$selected_permissions = array();
-				$result = db_query('SELECT tid, uid FROM {library_hours_access} WHERE uid=%d', $account->uid);
-				while ($access = db_fetch_object($result)) {
-					$selected_permissions[$access->tid] = $access->tid;
-				}
-				
-				$options = array();
-				foreach($tree as $vitem) {
-					$options[$vitem->tid] = t('access !library', array('!library' => $vitem->name));					
-				}
-				
-				$form['permissions'] = array(
-					'#title' => t('Library Hours Permissions'),
-					'#type' => 'checkboxes',
-					'#description' => (t('Please note if any of these permissions apply to !username.', array('!username' => $account->name))),
-					'#options' => $options,
-					'#default_value' => $selected_permissions,
-				);
-				
-				return $form;
+function library_hours_user_categories() {
+	return array(
+		array(
+			'name' => 'library_hours_access',
+			'title' => t('Library Hours Access'),
+			'weight' => 5,
+			'access callback' => 'user_access',
+			'access arguments' => array('administer users'), 
+		)
+	);
+}
+
+function library_hours_form_user_profile_form_alter(&$form, &$form_state) {
+	if ($form['#user_category'] == 'library_hours_access') {
+		$account = $form['#user'];
+		$voc_ids = _get_library_hours_vocabulary_ids();
+		$tree = taxonomy_get_tree($voc_ids['vid_lib']);
+		
+		$selected_permissions = array();
+		$result = db_query('SELECT tid, uid FROM {library_hours_access} WHERE uid=:uid', array(':uid'=>$account->uid));
+		foreach ($result as $access) {
+			$selected_permissions[$access->tid] = $access->tid;
+		}
+		
+		$options = array();
+		foreach($tree as $vitem) {
+			$options[$vitem->tid] = t('access !library', array('!library' => $vitem->name));					
+		}
+		
+		$form['permissions'] = array(
+			'#title' => t('Library Hours Permissions'),
+			'#type' => 'checkboxes',
+			'#description' => (t('Please note if any of these permissions apply to !username.', array('!username' => $account->name))),
+			'#options' => $options,
+			'#default_value' => $selected_permissions,
+		);
+	}	
+}
+
+function library_hours_user_update(&$edit, $account, $category) {
+	if ($category == 'library_hours_access') {
+		db_query('DELETE FROM {library_hours_access} WHERE uid=:uid', array(':uid'=>$account->uid));
+		foreach ($edit['permissions'] as $key => $value) {
+			if (is_numeric($key) && ($value != 0)) {
+				$rec = new stdClass();
+				$rec->tid = $key;
+				$rec->uid = $account->uid;
+				drupal_write_record('library_hours_access', $rec);
 			}
-			break;
-			
-		case 'submit':
-			if ($category == 'library_hours_access') {
-				db_query('DELETE FROM {library_hours_access} WHERE uid=%d', $account->uid);
-				foreach ($edit['permissions'] as $key => $value) {
-					if (is_numeric($key) && ($value != 0)) {
-						$rec = new stdClass();
-						$rec->tid = $key;
-						$rec->uid = $account->uid;
-						drupal_write_record('library_hours_access', $rec);
-					}
-				}
-			}
-			break;
+		}
 	}
 }
 
