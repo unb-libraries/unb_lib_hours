@@ -915,95 +915,77 @@ function daterange_getview_js() {
 	print theme('library_hours_daterange_view', $daterange, $timeframes);
 }
 
-function library_hours_nodeapi(&$node, $op, $teaser, $page) {
+function library_hours_load( $nodes ) {
+	$result = db_query("SELECT nid, startDate, endDate FROM {library_hours} WHERE nid IN (:nids)", array(':nids'=> array_keys($nodes)));
+	if ($result) {
+		foreach( $result as $data ) {
+			$startTime = strtotime($data->startDate);
+			$nodes[$data->nid]->start = array(
+				'month' => date("n", $startTime),
+				'day' => date("j", $startTime),
+				'year' => date("Y", $startTime),
+			);
+			
+			$endTime = strtotime($data->endDate);
+			$nodes[$data->nid]->end = array(
+				'month' => date("n", $endTime),
+				'day' => date("j", $endTime),
+				'year' => date("Y", $endTime),
+			);
+		}
+	}
+}
+
+function library_hours_update( $node ) {
+	$rec = new stdClass();
+	$rec->nid = $node->nid;
+	$rec->startDate = date('Y-m-d H:i:', 
+		mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year']));
+	$rec->endDate = date('Y-m-d H:i:s', 
+		mktime(23,59,59,$node->end['month'],$node->end['day'],$node->end['year']));
 	
+	drupal_write_record('library_hours', $rec, 'nid');
+}
+
+function library_hours_view( $node, $view_mode ) {
 	global $user;
+	// abort if user is not login or if not page display
+	if ($user->uid == 0 ) 
+		return;
+
+	$node->content['library_hours_daterange_listing'] = array (
+		'#value' => drupal_get_form('library_hours_daterange_listing', $node)
+	);
 	
-	switch($op) {
-		
-		case 'load':
-			if ($node->type != 'library_hours') 
-				break;
+	$startDate = mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year']);
+	$endDate = mktime(0,0,0,$node->end['month'],$node->end['day'],$node->end['year']);
+	$node->content['library_hours_term_dates'] = array(
+		'#value' => date('F j', $startDate) . ' - ' . date('F j, Y', $endDate)  
+	);
+	
+	// add Library Hours to bread crumbs
+	$breadcrumb = drupal_get_breadcrumb();
+	$breadcrumb[] = "<a href=\"/library_hours\">Library Hours</a>";
+	drupal_set_breadcrumb($breadcrumb);
+}
 
-			$result = db_query("SELECT nid, startDate, endDate FROM {library_hours} WHERE nid = %d", $node->nid);
-			if ($result) {
-				$data = db_fetch_object($result);
-				
-				$startTime =  strtotime($data->startDate);
-				$node->start = array(
-					'month' => date("n", $startTime),
-					'day' => date("j", $startTime),
-					'year' => date("Y", $startTime),
-				);
-				
-				$endTime =  strtotime($data->endDate);
-				$node->end = array(
-					'month' => date("n", $endTime),
-					'day' => date("j", $endTime),
-					'year' => date("Y", $endTime),
-				);
-
-			}
-			break;
-			
-		case 'update':
-			if ($node->type == 'library_hours')  {
-				$rec = new stdClass();
-				$rec->nid = $node->nid;
-				$rec->startDate = date('Y-m-d H:i:', 
-					mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year']));
-				$rec->endDate = date('Y-m-d H:i:s', 
-					mktime(23,59,59,$node->end['month'],$node->end['day'],$node->end['year']));
-				
-				drupal_write_record('library_hours', $rec, 'nid');
-			}
-			break;
-		
-		case 'view':
-			// abort if user is not login or if not page display
-			if ($user->uid == 0 || !$page) 
-				break;
-
-			// We want to alter library_hours only
-			if ($node->type != 'library_hours') 
-				break;
-				
-			$node->content['library_hours_daterange_listing'] = array (
-				'#value' => drupal_get_form('library_hours_daterange_listing', $node)
-			);
-			
-			$startDate = mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year']);
-			$endDate = mktime(0,0,0,$node->end['month'],$node->end['day'],$node->end['year']);
-			$node->content['library_hours_term_dates'] = array(
-				'#value' => date('F j', $startDate) . ' - ' . date('F j, Y', $endDate)  
-			);
-			
-			// add Library Hours to bread crumbs
-			$breadcrumb = drupal_get_breadcrumb();
-			$breadcrumb[] = "<a href=\"/library_hours\">Library Hours</a>";
-			drupal_set_breadcrumb($breadcrumb);
-			
-			break;
-			
-		case 'delete':
-				$dt_result = db_query("SELECT did FROM {dateranges} WHERE nid = %d", $node->nid);
-				while($dt = db_fetch_object($dt_result)) {
-					db_query("DELETE FROM {timeframes} WHERE did = %d", $dt->did);
-					db_query("DELETE FROM {dateranges} WHERE did = %d", $dt->did);
-				}
-				watchdog('library_hours', 
-					'Time Frames and Date Ranges for node %nid deleted.',
-					array('%nid' => $node->nid),
-					WATCHDOG_NOTICE
-				);
-				
-				// delete any associated holidays
-				db_query("DELETE FROM {holidays} WHERE nid=%d", $node->nid);
-				
-				if ($node->type == 'banner_notice') {
-					db_query("DELETE FROM {library_hours_library_notices} WHERE nid=%d", $node->nid);
-				}
-			break;
+function library_hours_delete( $node ) {
+	$dt_result = db_query("SELECT did FROM {dateranges} WHERE nid = :nid", array(':nid'=>$node->nid));
+	foreach($dt_result as $dt) {
+		db_query("DELETE FROM {timeframes} WHERE did = %d", $dt->did);
+		db_query("DELETE FROM {dateranges} WHERE did = %d", $dt->did);
+	}
+	watchdog('library_hours', 
+		'Time Frames and Date Ranges for node %nid deleted.',
+		array('%nid' => $node->nid),
+		WATCHDOG_NOTICE
+	);
+	
+	// delete any associated holidays
+	db_query("DELETE FROM {holidays} WHERE nid=:nid", array(':nid'=>$node->nid));
+	
+	if ($node->type == 'banner_notice') {
+		db_query("DELETE FROM {library_hours_library_notices} WHERE nid=:nid", array(':nid'=>$node->nid));
 	}
 }
 
