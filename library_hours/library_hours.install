@@ -50,6 +50,20 @@ function library_hours_schema() {
 				'not null' => TRUE,
 				'description' => t('Range End Date'),
 			),
+			/*
+			'library_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t("The library taxonomy id"),
+			),
+			'term_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t("The term taxonomy id"),
+			),
+			*/
 		),
 		'primary key' => array('nid'),
 		'indexes' => array(

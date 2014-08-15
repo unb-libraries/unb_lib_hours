@@ -60,14 +60,14 @@ function library_hours_node_info() {
 	);
 }
 
-function library_hours_form($node) {
-	$type = node_get_types('type', $node);
+function library_hours_form_library_hours_node_form_alter(&$form, &$form_state, $form_id) {
+	$type = node_type_get_type( $form['#node']->type );
 	
 	$form['title'] = array(
 		'#type' => 'textfield',
 		'#title' => check_plain($type->title_label),
 		'#required' => TRUE,
-		'#default_value' => $node->title,
+		'#default_value' => $form['#node']->title,
 		'#weight' => -5,
 		'#maxlength' => 255,
 	);
@@ -98,8 +98,6 @@ function library_hours_form($node) {
 		'#description' => t('Set End Date'),
 		'#default_value' => isset($node->end) ? $node->end : $defaultDate ,		
 	);
-	
-	return $form;
 }
 
 function library_hours_menu() {
