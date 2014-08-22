@@ -888,10 +888,6 @@ function library_hours_user_access($node = NULL) {
 	}
 }
 
-function library_hours_node_view ($node) {
-	return node_page_view($node);
-}
-
 function daterange_getview_js() {
 	$url = $_POST['url'];
 	if (!preg_match('@/node/(\d+)/view/daterange/(\d+)@', $url, $matches)) {
