@@ -838,6 +838,11 @@ function _has_access_to_specific_library($uid, $tid) {
 	return ($result->fetchColumn(0) == 1);
 }
 
+function taxonomy_node_get_terms_by_vocabulary($node, $vid, $key = 'tid') {
+    $result = db_query('SELECT t.tid, t.* FROM {taxonomy_term_data} t INNER JOIN {taxonomy_index} r ON r.tid = t.tid WHERE t.vid = :vid AND r.nid = :node_nid ORDER BY weight', array(':vid' => $vid, ':node_nid' => $node->nid));
+    return $result->fetchAll();
+}
+
 function library_hours_user_access($node = NULL) {
 	$vids = _get_library_hours_vocabulary_ids();
 	// check if user has permission for a specific library
@@ -1153,6 +1158,36 @@ function _library_hours_get_libraries_vid() {
 		taxonomy_vocabulary_save($lib_vocabulary);
 		$vid = $lib_vocabulary->vid;
 		variable_set('library_hours_lib_vocabulary', $vid);
+
+		$field = array(
+		  'field_name' => 'field_library',
+		  'type' => 'taxonomy_term_reference',
+		  'settings' => array(
+		    'allowed_values' => array(
+		      array(
+		        'vocabulary' => 'libraries',
+		        'parent' => 0
+		      ),
+		    ),
+		  ),
+		);
+		field_create_field($field);
+
+		$instance = array(
+			'field_name' => 'field_library',
+			'entity_type' => 'node',
+			'label' => 'Library',
+			'bundle' => 'library_hours',
+			'required' => true,
+			'widget' => array(
+			    'type' => 'options_select'
+			),
+			'display' => array(
+			    'default' => array('type' => 'hidden'),
+			    'teaser' => array('type' => 'hidden')
+			)
+		);
+		field_create_instance($instance);
 	}
 	return $vid;
 }
@@ -1178,6 +1213,36 @@ function _library_hours_get_terms_vid() {
 		taxonomy_vocabulary_save($lib_vocabulary);
 		$vid = $lib_vocabulary->vid;
 		variable_set('library_hours_term_vocabulary', $vid);
+
+		$field = array(
+		  'field_name' => 'field_term',
+		  'type' => 'taxonomy_term_reference',
+		  'settings' => array(
+		    'allowed_values' => array(
+		      array(
+		        'vocabulary' => 'terms',
+		        'parent' => 0
+		      ),
+		    ),
+		  ),
+		);
+		field_create_field($field);
+
+		$instance = array(
+			'field_name' => 'field_term',
+			'entity_type' => 'node',
+			'label' => 'Term',
+			'bundle' => 'library_hours',
+			'required' => true,
+			'widget' => array(
+			    'type' => 'options_select'
+			),
+			'display' => array(
+			    'default' => array('type' => 'hidden'),
+			    'teaser' => array('type' => 'hidden')
+			)
+		);
+		field_create_instance($instance);
 	}
 	return $vid;
 }
@@ -1220,8 +1285,9 @@ function _get_vocabulary_term_children($lhTermVocId, $libTermId, $vocTermName, $
 	
 	$rows = array();
 	foreach ($nodes as $node) {
+		$node = node_load( $node );
 		// get term (aka semester) from terms vocabulary
-		$terms = taxonomy_node_get_terms_by_vocabulary(node_load($node->nid), $lhTermVocId);
+		$terms = taxonomy_node_get_terms_by_vocabulary($node, $lhTermVocId);
 		$term = array_shift($terms);
 		$row = array();
 		$row[] = array(
@@ -1241,7 +1307,7 @@ function _get_vocabulary_term_children($lhTermVocId, $libTermId, $vocTermName, $
 	}
 	
 	if (!empty($rows)) {
-		$out .= '<h3>' . check_plain($vocTermName) . '</h3>';
+		$out = '<h3>' . check_plain($vocTermName) . '</h3>';
 		return $out . theme('table', array(t('Term'),t('Title')), $rows);
 	}
 	

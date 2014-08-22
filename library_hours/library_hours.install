@@ -16,6 +16,10 @@ function library_hours_uninstall() {
 
 	variable_del('library_hours_lib_vocabulary');
 	variable_del('library_hours_term_vocabulary');
+
+	field_delete_field( 'field_library' );
+	field_delete_field( 'field_term' );
+	field_purge_batch( 2 );
 	
 	# delete all nodes we created
 	$result = db_query("SELECT nid FROM {node} WHERE type='%s'", array( 'library_hours' ));
