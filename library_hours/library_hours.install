@@ -104,7 +104,6 @@ function library_hours_schema() {
 			),
 			'target' => array(
 				'type' => 'text',
-				'not null' => TRUE,
 				'size' => 'tiny',
 				'description' => t('Contains what module daterange belongs to'),
 			)
