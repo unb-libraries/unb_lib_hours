@@ -2,7 +2,7 @@
 
 function library_hours_daterange($node) {
 	$output = t('Use this page to add/edit a date range for <em>!title</em>.', array('!title' => $node->title));
-	$output .= drupal_get_form('library_hours_daterange_form', $node);
+	$output .= drupal_render( drupal_get_form('library_hours_daterange_form', $node) );
 	return $output; 
 }
 
@@ -87,8 +87,7 @@ function library_hours_holidays_form_submit($form, &$form_state) {
 	drupal_set_message('New holiday date added successfully');
 }
 
-function library_hours_daterange_form(&$form_state, $node, $edit = array()) {
-		
+function library_hours_daterange_form($form, &$form_state, $node, $edit = null) {
 	if (!isset($form_state['timeframe_count']) && !empty($edit)) {
 		$form_state['timeframe_count'] = count($edit['time_frame']['rows']);
 	}
