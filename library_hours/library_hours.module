@@ -1313,3 +1313,7 @@ function _get_vocabulary_term_children($lhTermVocId, $libTermId, $vocTermName, $
 	
 	return NULL;		
 }
+
+function library_hours_views_api() {
+  return array('api' => 2);
+}
