@@ -1098,7 +1098,7 @@ function theme_library_hours_daterange_listing($form) {
 	}
 	
 	$header = array(t('Label'), array('data' => t('Operations'), 'colspan' => 3));
-	return theme('table', $header, $rows) . drupal_render($form);
+	return theme('table', array( 'header' => $header, 'rows' => $rows )) . drupal_render($form);
 }
 
 function theme_library_hours_daterange_view($daterange, $timeframes) {
@@ -1308,7 +1308,7 @@ function _get_vocabulary_term_children($lhTermVocId, $libTermId, $vocTermName, $
 	
 	if (!empty($rows)) {
 		$out = '<h3>' . check_plain($vocTermName) . '</h3>';
-		return $out . theme('table', array(t('Term'),t('Title')), $rows);
+		return $out . theme('table', array( 'header' => array(t('Term'),t('Title')), 'rows' => $rows ));
 	}
 	
 	return NULL;		
