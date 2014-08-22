@@ -360,8 +360,7 @@ function library_hours_daterange_form_validate($form, &$form_state) {
 }
 
 function library_hours_daterange_form_submit($form, &$form_state) {
-	
-	$node = $form['#parameters'][2]; 
+	$node = $form_state['build_info']['args'][0]; 
 	
 	$timestamp = null;
 	// we create date range first
