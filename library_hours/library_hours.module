@@ -1063,18 +1063,19 @@ function library_hours_daterange_load($did) {
 	return $daterange;
 }
 
-function theme_library_hours_daterange_listing($form) {
+function theme_library_hours_daterange_listing($variables) {
 	
 	$opts = array('absolute' => TRUE);
 	$view_url = url('library_hours/daterange/getview_js', $opts);
 	
 	drupal_add_js(array('daterange' => array('view_url' => $view_url)), 'setting');
 	drupal_add_js(drupal_get_path('module', 'library_hours') . '/js/daterange.js');
-		
+	
+	$form = $variables['form'];
 	$rows = array();
-	foreach(element_children($form['form']) as $key) {
-		if (isset($form['form'][$key]['label'])) {
-			$daterange = &$form['form'][$key];
+	foreach(element_children($form) as $key) {
+		if (isset($form[$key]['label'])) {
+			$daterange = &$form[$key];
 			
 			$row = array();
 			$row[] = drupal_render($daterange['label']);
@@ -1094,7 +1095,10 @@ function theme_library_hours_daterange_listing($form) {
 	return theme('table', array( 'header' => $header, 'rows' => $rows ));
 }
 
-function theme_library_hours_daterange_view($daterange, $timeframes) {
+function theme_library_hours_daterange_view($variables) {
+	$daterange = $varibles['daterange'];
+	$timeframes = $varibles['timeframes'];
+
 	$output .= '<tr class="library-hours-daterange-view-container"><td colspan="4">';
 	$output .= '<table class="library-hours-daterange-view-content">';
 	$output .= '<tr class="header"><td colspan="2">';
