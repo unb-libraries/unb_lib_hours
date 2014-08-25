@@ -173,18 +173,7 @@ function library_hours_menu() {
 		/*'access arguments' => array('authenticated user'),*/
 		'type' => MENU_NORMAL_ITEM
 	);
-	
-	/*
-	$items['library_hours/%node'] = array(
-		'title' => 'Library Hours',
-		'page callback' => 'library_hours_node_view',
-		'page arguments' => array(1),
-		'access callback' => 'library_hours_user_access',
-		'access arguments' => array(1),
-		'type' => MENU_NORMAL_ITEM
-	);
-	*/
-	
+
 	return $items;
 }
 
