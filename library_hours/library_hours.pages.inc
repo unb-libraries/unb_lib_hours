@@ -11,7 +11,7 @@ function library_hours_holidays($node) {
 	
 	# date list
 	$holidays = array();
-	$result = db_query("SELECT hid, nid, label, date FROM {holidays} WHERE nid = %d ORDER BY UNIX_TIMESTAMP(date) ASC", $node->nid);
+	$result = db_query("SELECT hid, nid, label, date FROM {holidays} WHERE nid = :nid ORDER BY UNIX_TIMESTAMP(date) ASC", array(':nid'=>$node->nid));
 	while ($holiday = db_fetch_object($result)) {
 		$row = array();
 		$row[] = check_plain($holiday->label);
@@ -369,7 +369,7 @@ function library_hours_daterange_form_submit($form, &$form_state) {
 	if (isset($form_state['values']['did'])) {
 		$dr_rec->did = $form_state['values']['did'];
 		// reset time frames for this date range
-		db_query('DELETE FROM {timeframes} WHERE did = %d', $form_state['values']['did']);
+		db_query('DELETE FROM {timeframes} WHERE did = :did', array(':did'=>$form_state['values']['did']));
 	}
 	
 	$dr_rec->nid = $node->nid;
@@ -479,7 +479,7 @@ function library_hours_daterange_confirm_delete(&$form_state, $node, $daterange)
 
 function library_hours_holiday_confirm_delete_submit($form, &$form_state) {
 	$hid = (int) $form_state['values']['hid'];
-	db_query('DELETE FROM {holidays} WHERE hid = %d', $hid);
+	db_query('DELETE FROM {holidays} WHERE hid = :hid', array(':hid'=>$hid));
 	drupal_set_message(t('Deleted Holiday %label', array('%label' => $form_state['values']['label'])));
 	watchdog('library_hours', 'Deleted Holiday %label', array('%label' => $form_state['values']['label']), WATCHDOG_NOTICE);
 	$form_state['redirect'] = "node/{$form_state['values']['nid']}/holidays";
@@ -487,8 +487,8 @@ function library_hours_holiday_confirm_delete_submit($form, &$form_state) {
 
 function library_hours_daterange_confirm_delete_submit($form, &$form_state) {
 	$did = (int) $form_state['values']['did'];
-	db_query('DELETE FROM {timeframes} WHERE did = %d', $did);
-	db_query('DELETE FROM {dateranges} WHERE did = %d', $did);
+	db_query('DELETE FROM {timeframes} WHERE did = :did', array(':did'=>$did));
+	db_query('DELETE FROM {dateranges} WHERE did = :did', array(':did'=>$did));
 	drupal_set_message(t('Deleted Date Range %label', array('%label' => $form_state['values']['label'])));
 	watchdog('library_hours', 'Deleted Date Range %label', array('%label' => $form_state['values']['label']), WATCHDOG_NOTICE);
 	$form_state['redirect'] = "node/{$form_state['values']['nid']}";
