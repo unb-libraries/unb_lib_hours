@@ -942,22 +942,22 @@ function library_hours_node_update( $node ) {
 	drupal_write_record('library_hours', $rec, 'nid');
 }
 
-function library_hours_node_view( $node, $view_mode ) {
+function library_hours_node_view( $node, $view_mode, $langcode ) {
 	global $user;
 	// abort if user is not login or if not page display
 	if ($user->uid == 0 ) 
 		return;
-
-	$node->content['library_hours_daterange_listing'] = array (
-		'#value' => drupal_get_form('library_hours_daterange_listing', $node)
-	);
 	
 	$startDate = mktime(0,0,0,$node->start['month'],$node->start['day'],$node->start['year']);
 	$endDate = mktime(0,0,0,$node->end['month'],$node->end['day'],$node->end['year']);
 	$node->content['library_hours_term_dates'] = array(
-		'#value' => date('F j', $startDate) . ' - ' . date('F j, Y', $endDate)  
+		'#markup' => date('F j', $startDate) . ' - ' . date('F j, Y', $endDate)  
 	);
 	
+	$node->content['library_hours_daterange_listing'] = array (
+		'#markup' => drupal_render( drupal_get_form('library_hours_daterange_listing', $node) )
+	);
+
 	// add Library Hours to bread crumbs
 	$breadcrumb = drupal_get_breadcrumb();
 	$breadcrumb[] = "<a href=\"/library_hours\">Library Hours</a>";
@@ -987,18 +987,18 @@ function library_hours_node_delete( $node ) {
 }
 
 function library_hours_daterange_listing($form, &$form_state, $node) {
-	$form = array('#tree' => TRUE);
-	$result = db_query("SELECT * FROM {dateranges} dt WHERE dt.nid = ':nid' ORDER BY dt.startDate ASC", array(':nid'=>$node->nid));
+	$form[ '#tree' ] = TRUE;
+	$result = db_query("SELECT * FROM {dateranges} dt WHERE dt.nid = :nid ORDER BY dt.startDate ASC", array(':nid'=>$node->nid));
 	foreach ($result as $dt) {
 		//$form[$dt->did]['#daterange'] = (Array) $dt;
 		$label = check_plain($dt->label);
 		if ($dt->hideLabel) {
 			$label .= ' (Hidden)';
 		}
-		$form[$dt->did]['label'] = array('#value' => $label);
-		$form[$dt->did]['view'] = array('#value' => l(t('View'), "node/{$dt->nid}/view/daterange/{$dt->did}", array('attributes' => array('class' => 'daterange-view-link'))));
-		$form[$dt->did]['edit'] = array('#value' => l(t('Edit'), "node/{$dt->nid}/daterange/edit/{$dt->did}"));
-		$form[$dt->did]['delete'] = array('#value' => l(t('Delete'), "node/{$dt->nid}/daterange/delete/{$dt->did}"));
+		$form[$dt->did]['label'] = array('#markup' => $label);
+		$form[$dt->did]['view'] = array('#markup' => l(t('View'), "node/{$dt->nid}/view/daterange/{$dt->did}", array('attributes' => array('class' => 'daterange-view-link'))));
+		$form[$dt->did]['edit'] = array('#markup' => l(t('Edit'), "node/{$dt->nid}/daterange/edit/{$dt->did}"));
+		$form[$dt->did]['delete'] = array('#markup' => l(t('Delete'), "node/{$dt->nid}/daterange/delete/{$dt->did}"));
 	}
 	
 	return $form;
@@ -1072,9 +1072,9 @@ function theme_library_hours_daterange_listing($form) {
 	drupal_add_js(drupal_get_path('module', 'library_hours') . '/js/daterange.js');
 		
 	$rows = array();
-	foreach(element_children($form) as $key) {
-		if (isset($form[$key]['label'])) {
-			$daterange = &$form[$key];
+	foreach(element_children($form['form']) as $key) {
+		if (isset($form['form'][$key]['label'])) {
+			$daterange = &$form['form'][$key];
 			
 			$row = array();
 			$row[] = drupal_render($daterange['label']);
@@ -1091,7 +1091,7 @@ function theme_library_hours_daterange_listing($form) {
 	}
 	
 	$header = array(t('Label'), array('data' => t('Operations'), 'colspan' => 3));
-	return theme('table', array( 'header' => $header, 'rows' => $rows )) . drupal_render($form);
+	return theme('table', array( 'header' => $header, 'rows' => $rows ));
 }
 
 function theme_library_hours_daterange_view($daterange, $timeframes) {
