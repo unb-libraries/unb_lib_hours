@@ -994,11 +994,11 @@ function library_hours_daterange_listing($form, &$form_state, $node) {
 }
 
 function library_hours_holiday_load($hid) {
-	$result = db_query("SELECT hid, nid, label, date FROM {holidays} WHERE hid = %d", $hid);
+	$result = db_query("SELECT hid, nid, label, date FROM {holidays} WHERE hid = :hid", array(':hid'=>$hid));
 	if (!$result)
 		return FALSE;
 	
-	$holiday = db_fetch_object($result);
+	$holiday = $result->fetchObject();
 	return $holiday;
 }
 

@@ -12,7 +12,7 @@ function library_hours_holidays($node) {
 	# date list
 	$holidays = array();
 	$result = db_query("SELECT hid, nid, label, date FROM {holidays} WHERE nid = :nid ORDER BY UNIX_TIMESTAMP(date) ASC", array(':nid'=>$node->nid));
-	while ($holiday = db_fetch_object($result)) {
+	foreach ($result as $holiday) {
 		$row = array();
 		$row[] = check_plain($holiday->label);
 		$row[] = check_plain(date('F d', strtotime($holiday->date)));
@@ -26,13 +26,13 @@ function library_hours_holidays($node) {
 	}
 	
 	$header = array(t('Label'), t('Date'), array('data' => t('Operations')));
-	$output .= theme('table', $header, $rows);
+	$output .= theme('table', array('header'=>$header, 'rows'=>$rows));
 	
-	$output .= drupal_get_form('library_hours_holidays_form', $node);
+	$output .= drupal_render(drupal_get_form('library_hours_holidays_form', $node));
 	return $output;
 }
 
-function library_hours_holidays_form(&$form_state, $node, $edit = array()) {
+function library_hours_holidays_form($form, &$form_state, $node, $edit = array()) {
 	$form['holiday'] = array(
 		'#tree' => TRUE,
 		'#type' => 'fieldset',
@@ -71,7 +71,7 @@ function library_hours_holidays_form_validate($form, &$form_state) {
 }
 
 function library_hours_holidays_form_submit($form, &$form_state) {
-	$node = $form['#parameters'][2]; 
+	$node = $form_state['build_info']['args'][0];
 	
 	$holiday = new stdClass();
 	$holiday->nid = $node->nid;
@@ -449,7 +449,7 @@ function library_hours_daterange_edit($node, $daterange) {
 	return drupal_get_form ('library_hours_daterange_form', $node, $daterange);
 }
 
-function library_hours_holiday_confirm_delete(&$form_state, $node, $holiday) {
+function library_hours_holiday_confirm_delete($form, &$form_state, $node, $holiday) {
 	$form['nid'] = array('#type' => 'value', '#value' => $node->nid);
 	$form['hid'] = array('#type' => 'value', '#value' => $holiday->hid);
 	$form['label'] = array('#type' => 'value', '#value' => $holiday->label);
@@ -463,7 +463,7 @@ function library_hours_holiday_confirm_delete(&$form_state, $node, $holiday) {
 	);
 }
 
-function library_hours_daterange_confirm_delete(&$form_state, $node, $daterange) {
+function library_hours_daterange_confirm_delete($form, &$form_state, $node, $daterange) {
 	$form['nid'] = array('#type' => 'value', '#value' => $node->nid);
 	$form['did'] = array('#type' => 'value', '#value' => $daterange['did']);
 	$form['label'] = array('#type' => 'value', '#value' => $daterange['label']);
