@@ -28,10 +28,10 @@ function library_hours_perm() {
 function library_hours_theme() {
 	return array(
 		'library_hours_daterange_listing' => array (
-			'arguments' => array('form' => array())
+			'render element' => 'form'
 		),
 		'library_hours_daterange_view' => array (
-			'arguments' => array('daterange' => NULL, 'timeframes' => NULL)
+			'varibles' => array('daterange' => NULL, 'timeframes' => NULL)
 		),
 	);
 }
@@ -986,11 +986,10 @@ function library_hours_node_delete( $node ) {
 	}
 }
 
-function library_hours_daterange_listing($form_state, $node) {
-	
+function library_hours_daterange_listing($form, &$form_state, $node) {
 	$form = array('#tree' => TRUE);
-	$result = db_query("SELECT * FROM {dateranges} dt WHERE dt.nid = %d ORDER BY dt.startDate ASC", $node->nid);
-	while ($dt = db_fetch_object($result)) {
+	$result = db_query("SELECT * FROM {dateranges} dt WHERE dt.nid = ':nid' ORDER BY dt.startDate ASC", array(':nid'=>$node->nid));
+	foreach ($result as $dt) {
 		//$form[$dt->did]['#daterange'] = (Array) $dt;
 		$label = check_plain($dt->label);
 		if ($dt->hideLabel) {
