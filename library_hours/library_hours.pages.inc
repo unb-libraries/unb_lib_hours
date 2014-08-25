@@ -200,8 +200,8 @@ function library_hours_daterange_form($form, &$form_state, $node, $edit = null) 
 		'#value' => t('Add another element'),
 		'#name' => 'timeframe_more',
 		'#submit' => array('time_frame_more_submit'),
-		'#ahah' => array(
-			'path' => 'library_hours/timeframe/js',
+		'#ajax' => array(
+			'callback' => 'timeframe_more_js',
 			'wrapper' => 'timeframe-elements',
 			'method' => 'replace',
 			'effect' => 'fade'
@@ -413,15 +413,8 @@ function library_hours_daterange_form_submit($form, &$form_state) {
 	$form_state['redirect'] = "/node/{$node->nid}";
 }
 
-function timeframe_more_js () {
-
-	$form_state = array('storage' => NULL, 'submitted' => FALSE);
-	$form_build_id = $_POST['form_build_id'];
-	
-	// Get the form from the cache.
-	$form = form_get_cache($form_build_id, $form_state);
-	$args = $form['#parameters'];
-	$form_id = array_shift($args);
+function timeframe_more_js ($form, &$form_state) {
+	$form_id = $form['#form_id'];
 	
 	// We will run some of the submit handlers so we need to disable redirecting.
 	$form['#redirect'] = FALSE;
@@ -437,12 +430,12 @@ function timeframe_more_js () {
 	
 	// This call recreates the form relying solely on the form_state that the
 	// drupal_process_form set up.
-	$form = drupal_rebuild_form($form_id, $form_state, $args, $form_build_id);
+	$form = drupal_rebuild_form($form_id, $form_state, $form);
 	
 	$timeframe_form = $form['time_frame']['rows'];
 	$output = drupal_render($timeframe_form);
 	
-	drupal_json(array('status' => TRUE, 'data' => $output));
+	return $output;
 }
 
 function library_hours_daterange_edit($node, $daterange) {

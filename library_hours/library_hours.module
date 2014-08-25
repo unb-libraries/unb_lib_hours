@@ -151,14 +151,6 @@ function library_hours_menu() {
 		'file' => 'library_hours.pages.inc',
 	);
 	
-	$items['library_hours/timeframe/js'] = array (
-		'title' => 'Javascript Time Frame Form',
-		'page callback' => 'timeframe_more_js',
-		'access arguments' => array('access content'),
-		'type' => MENU_CALLBACK,
-		'file' => 'library_hours.pages.inc',
-	);
-	
 	$items['library_hours/daterange/getview_js'] = array (
 		'title' => 'Javascript Date Range View Display',
 		'page callback' => 'daterange_getview_js',
