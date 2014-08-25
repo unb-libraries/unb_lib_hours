@@ -1085,8 +1085,8 @@ function theme_library_hours_daterange_listing($variables) {
 }
 
 function theme_library_hours_daterange_view($variables) {
-	$daterange = $varibles['daterange'];
-	$timeframes = $varibles['timeframes'];
+	$daterange = $variables['daterange'];
+	$timeframes = $variables['timeframes'];
 
 	$output .= '<tr class="library-hours-daterange-view-container"><td colspan="4">';
 	$output .= '<table class="library-hours-daterange-view-content">';
