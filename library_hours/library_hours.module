@@ -1015,10 +1015,10 @@ function library_hours_holiday_load($hid) {
 
 function library_hours_daterange_load($did) {
 	$datarange = array();
-	$result = db_query('SELECT * FROM {dateranges} WHERE did = %d', $did);
+	$result = db_query('SELECT * FROM {dateranges} WHERE did = :did', array(':did'=>$did));
 	if (!$result)
 		return FALSE;
-	$dt = db_fetch_object($result);
+	$dt = $result->fetchObject();
 	
 	$daterange['did'] = intval($dt->did);
 	$daterange['label'] = check_plain($dt->label);
@@ -1040,8 +1040,8 @@ function library_hours_daterange_load($did) {
 	
 	$i = 1;
 	$rows = array();
-	$result = db_query('SELECT * FROM {timeframes} WHERE did = %d ORDER BY tid ASC', $did);
-	while ($tf = db_fetch_object($result)) {
+	$result = db_query('SELECT * FROM {timeframes} WHERE did = :did ORDER BY tid ASC', array(':did'=>$did));
+	foreach ($result as $tf) {
 		$start_time = strtotime($tf->startTime);
 		$end_time = strtotime($tf->endTime);
 		$rows[$i] = array("timeframe_element_{$i}" => array(
