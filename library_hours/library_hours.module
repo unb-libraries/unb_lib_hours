@@ -884,21 +884,21 @@ function daterange_getview_js() {
 	$nid = $matches[1];
 	$did = $matches[2];
 	
-	$result = db_query('SELECT startDate, endDate FROM dateranges WHERE did = %d', $did);
+	$result = db_query('SELECT startDate, endDate FROM dateranges WHERE did = :did', array(':did'=>$did));
 	if (!$result) {
 		return;
 	}
 	
 	$timeframes = array();
-	$daterange = db_fetch_object($result);
+	$daterange = $result->fetchObject();
 	
-	$result = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $did);
-	while ($timeframe = db_fetch_object($result)) {
+	$result = db_query('SELECT * FROM timeframes WHERE did = :did ORDER BY tid ASC', array(':did'=>$did));
+	foreach ($result as $timeframe) {
 		$timeframes[] = $timeframe;		
 	}
 	
-	drupal_set_header('Content-Type: text/plain; charset: utf-8');
-	print theme('library_hours_daterange_view', $daterange, $timeframes);
+	drupal_add_http_header('Content-Type: text/plain; charset: utf-8');
+	print theme('library_hours_daterange_view', array( daterange => $daterange, timeframes => $timeframes));
 }
 
 function library_hours_node_load( $nodes ) {
