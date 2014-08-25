@@ -296,8 +296,8 @@ function xmls_library_hours_available_terms() {
 	$libs = array();
 	$ids = _get_library_hours_vocabulary_ids();
 
-	$result = db_query("SELECT tid, name FROM {taxonomy_term_data} WHERE vid = %d", $ids['vid_term']);
-	while ($l = db_fetch_object($result)) {
+	$result = db_query("SELECT tid, name FROM {taxonomy_term_data} WHERE vid = :vid", array(':vid'=>$ids['vid_term']));
+	foreach ($result as $l) {
 		$libs[$l->tid] = check_plain($l->name);			
 	}
 	
@@ -338,10 +338,10 @@ function xmls_library_hours_get_library_hours($library_id, $term_id = NULL, $dat
 	$lib_xml->addAttribute('today', $today);
 	
 	# load term start and end dates
-	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = %d", $lib_obj->nid);
+	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = :nid", array(':nid'=>$lib_obj->nid));
 	
 	if ($result) {
-		$result_data = db_fetch_object($result);
+		$result_data = $result->fetchObject();
 		$termDates = date('F j', strtotime($result_data->startDate)) . ' - ' . date('F j, Y', strtotime($result_data->endDate));
 		$lib_xml->addAttribute('term_dates', $termDates);	
 
@@ -370,7 +370,7 @@ function xmls_library_hours_get_library_hours($library_id, $term_id = NULL, $dat
 
 	$sql = "SELECT * FROM 
 			(
-				(SELECT * FROM dateranges dt WHERE dt.nid = %d)
+				(SELECT * FROM dateranges dt WHERE dt.nid = :nid)
 				UNION
 				(SELECT * FROM dateranges dt 
 					WHERE target='banner' 
@@ -383,9 +383,9 @@ function xmls_library_hours_get_library_hours($library_id, $term_id = NULL, $dat
 			) t
 			ORDER BY t.startDate ASC";
 	
-	$result = db_query($sql, $lib_obj->nid);
+	$result = db_query($sql, array(':nid'=>$lib_obj->nid));
 	
-	while ($dt = db_fetch_object($result)) {
+	foreach ($result as $dt) {
 		$label = $endDate = '';
 		if (!$dt->hideLabel) {
 			$label = check_plain($dt->label);
@@ -399,22 +399,22 @@ function xmls_library_hours_get_library_hours($library_id, $term_id = NULL, $dat
 		if ($dt->target == 'banner') {
 			$req = 'SELECT * 
 					FROM timeframes tf, library_hours_library_notices ln 
-					WHERE ln.tfid = tf.tid AND did = %d AND ln.tid = %d 
+					WHERE ln.tfid = tf.tid AND did = :did AND ln.tid = :tid 
 					ORDER BY tf.tid ASC';
-			$result2 = db_query($req, $dt->did, $library_id);
+			$result2 = db_query($req, array(':did'=>$dt->did, ':tid'=>$library_id));
 		}
 		else {
-			$result2 = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $dt->did);
+			$result2 = db_query('SELECT * FROM timeframes WHERE did = :did ORDER BY tid ASC', array(':did'=>$dt->did));
 		}
 		
-		if (db_affected_rows()) {
+		if ($result2->rowCount()) {
 			$xml_range = $xml_ranges->addChild('range');
 			$xml_range->addAttribute('label', $label);
 			$xml_range->addAttribute('startDate', date('F j', strtotime($dt->startDate)));
 			$xml_range->addAttribute('endDate', $endDate);
 			
 			//$result2 = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $dt->did);
-			while ($timeframe = db_fetch_object($result2)) {
+			foreach ($result2 as $timeframe) {
 				$xml_timeframe = $xml_range->addChild('timeframe');
 				
 				$days = '';
@@ -479,7 +479,7 @@ function xmls_library_hours_get_hours_block($library_id, $term_id, $date = NULL,
 	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and');
 	$lib = db_fetch_object($libs);
 	
-	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = %d", $lib->nid);
+	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = :nid", array(':nid'=>$lib->nid));
 	if (!$result)
 		return FALSE;
 	
@@ -497,7 +497,7 @@ function xmls_library_hours_get_hours_block($library_id, $term_id, $date = NULL,
 			(SELECT 
 				dt.*, 
 				(SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
-				FROM {dateranges} dt WHERE dt.nid = %d)
+				FROM {dateranges} dt WHERE dt.nid = :nid)
 			UNION
 			(SELECT 
 				dt.*, (SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
@@ -512,8 +512,8 @@ function xmls_library_hours_get_hours_block($library_id, $term_id, $date = NULL,
 		) t
 		ORDER BY t.startDate ASC";
 	
-	$result2 = db_query($sql, $lib->nid);
-	while ($dt = db_fetch_object($result2)) {
+	$result2 = db_query($sql, array(':nid'=>$lib->nid));
+	foreach ($result2 as $dt) {
 		$date_range_start_date = strtotime($dt->startDate);
 		$date_range_end_date = strtotime($dt->endDate);
 		if (($date_range_end_date >= $date_timestamp) && ($date_range_start_date <= $date_timestamp)) {
@@ -529,8 +529,8 @@ function xmls_library_hours_get_hours_block($library_id, $term_id, $date = NULL,
 		return FALSE;
 
 	$lib_hours_block_xml = simplexml_load_string('<library_hours_block name="' . check_plain($closest_date_range->label) . '"/>');
-	$result3 = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $closest_date_range->did);
-	while ($timeframe = db_fetch_object($result3)) {
+	$result3 = db_query('SELECT * FROM timeframes WHERE did = :did ORDER BY tid ASC', array(':did'=>$closest_date_range->did));
+	foreach ($result3 as $timeframe) {
 		$xml_timeframe = $lib_hours_block_xml->addChild('timeframe');
 	
 		$days = '';
@@ -594,8 +594,8 @@ function xmls_library_hours_get_holidays($library_id, $term_id) {
 	$lib = db_fetch_object($libs);
 	
 	if ($lib) {
-		$result = db_query("SELECT label, UNIX_TIMESTAMP(date) as uts FROM {holidays} WHERE nid=%d ORDER BY date ASC", $lib->nid);
-		while ($holiday = db_fetch_object($result)) {
+		$result = db_query("SELECT label, UNIX_TIMESTAMP(date) as uts FROM {holidays} WHERE nid=:nid ORDER BY date ASC", array(':nid'=>$lib->nid));
+		foreach ($result as $holiday) {
 			$holidays[] = array(
 				'label' => check_plain($holiday->label),
 				'date' => $holiday->uts
@@ -639,7 +639,7 @@ function xmls_library_hours_get_banner_notices($date) {
 	$result = db_query($sql);
 	
 	$notices = array();
-	while ($line = db_fetch_object($result)) {
+	foreach ($result as $line ) {
 		$banner_notice = node_load($line->nid);
 		$notice = array(
 			'title' => stripslashes($banner_notice->title),
@@ -662,11 +662,11 @@ function _determine_library_hours_for_specific_date($library_id, $term_id, $date
 	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and');
 	$lib = db_fetch_object($libs);
 	
-	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = %d", $lib->nid);
+	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = :nid", array(':nid'=>$lib->nid));
 	if (!$result)
 		return FALSE;
 	
-	$result_data = db_fetch_object($result);
+	$result_data = $result->fetchObject();
 	$lib_term_start_date_timestamp = strtotime($result_data->startDate);
 	$lib_term_end_date_timestamp = strtotime($result_data->endDate);
 	// date must be between start date and end date
@@ -692,7 +692,7 @@ function _determine_library_hours_for_specific_date($library_id, $term_id, $date
 			(SELECT 
 				dt.*, 
 				(SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
-				FROM {dateranges} dt WHERE dt.nid = %d)
+				FROM {dateranges} dt WHERE dt.nid = :nid)
 			UNION
 			(SELECT 
 				dt.*, (SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
@@ -707,8 +707,8 @@ function _determine_library_hours_for_specific_date($library_id, $term_id, $date
 		) t
 		ORDER BY t.startDate ASC";
 	
-	$result2 = db_query($sql, $lib->nid);
-	while ($dt = db_fetch_object($result2)) {
+	$result2 = db_query($sql, array(':nid'=>$lib->nid));
+	foreach ($result2 as $dt) {
 		$date_range_start_date = strtotime($dt->startDate);
 		$date_range_end_date = strtotime($dt->endDate);
 		if (($date_range_end_date >= $date_timestamp) && ($date_range_start_date <= $date_timestamp)) {
@@ -724,8 +724,8 @@ function _determine_library_hours_for_specific_date($library_id, $term_id, $date
 		return FALSE;
 		
 	// check holidays dates 
-	$res = db_query("SELECT date FROM {holidays} WHERE nid = %d", $lib->nid);
-	while ($holiday_date = db_fetch_object($res)) {
+	$res = db_query("SELECT date FROM {holidays} WHERE nid = :nid", array(':nid'=>$lib->nid));
+	foreach ($res as $holiday_date) {
 		$holiday_date_timestamp = strtotime($holiday_date->date);
 		if ($date_timestamp == $holiday_date_timestamp) {
 			return 'CLOSED';
@@ -740,15 +740,15 @@ function _determine_library_hours_for_specific_date($library_id, $term_id, $date
 	if ($closest_date_range->target == 'banner') {
 		$req = 'SELECT * 
 					FROM timeframes tf, library_hours_library_notices ln 
-					WHERE ln.tfid = tf.tid AND did = %d AND ln.tid = %d 
+					WHERE ln.tfid = tf.tid AND did = :did AND ln.tid = :tid 
 					ORDER BY tf.tid ASC';
-		$result3 = db_query($req, $closest_date_range->did, $library_id);
+		$result3 = db_query($req, array(':did'=>$closest_date_range->did, ':tid'=>$library_id));
 	}
 	else {
-		$result3 = db_query('SELECT * FROM timeframes WHERE did = %d ORDER BY tid ASC', $closest_date_range->did);
+		$result3 = db_query('SELECT * FROM timeframes WHERE did = :did ORDER BY tid ASC', array(':did'=>$closest_date_range->did));
 	}
 	
-	while ($timeframe = db_fetch_object($result3)) {
+	foreach ($result3 as $timeframe ) {
 		$start_day_number = date('N', strtotime($timeframe->startDay));
 		$end_day_number = date('N', strtotime($timeframe->endDay));
 		if ($timeframe->endDay != 'NaN') { // period
