@@ -250,6 +250,44 @@ function library_hours_node_insert($node) {
 	drupal_write_record('library_hours', $rec);
 }
 
+
+# --
+# From https://gist.github.com/cecilemuller/1973248
+
+/**
+ * In Drupal 6, `taxonomy_select_nodes` was able to filter by multiple terms,
+ * but Drupal 7 accepts only one TermID.
+ */
+
+function taxonomy_select_nodes_multiple($tids = array(), $operator = 'or'){
+	$nids = array();
+	if (variable_get('taxonomy_maintain_index_table', TRUE)){
+		switch($operator){
+			case 'or':
+				$query = 'SELECT DISTINCT(nid) FROM {taxonomy_index} WHERE tid IN(' . implode(',', $tids) . ')';
+			break;
+			case 'and':
+				$i = 0;
+				foreach ($tids as $tid){
+					if ($i == 0){
+						$tables = 't0.nid FROM {taxonomy_index} t0 ';
+						$where = "t0.tid = $tid ";
+					} else {
+						$tables .= "LEFT JOIN {taxonomy_index} t$i ON (t$i.nid = t".($i - 1).'.nid) ';
+						$where .= "AND t$i.tid = $tid ";
+					}
+					$i ++;
+				}
+				$query = "SELECT $tables WHERE $where ORDER BY t0.nid ASC";
+			break;
+		}
+	}	
+	if (!empty($query)) $nids = db_query($query)->fetchCol();
+	return $nids;
+}
+
+# --
+
 function library_hours_xmlrpc() {
 	$methods['library_hours.getAvailableLibraries'] = 'xmls_library_hours_available_libraries';
 	$methods['library_hours.getAvailableTerms'] = 'xmls_library_hours_available_terms';
@@ -323,15 +361,13 @@ function xmls_library_hours_get_library_hours($library_id, $term_id = NULL, $dat
 	}
 	
 	$lib_xml = $lib_obj = NULL;
-	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and');
-	while ($lib = db_fetch_object($libs)) {
-		$lib_obj = $lib;		
-	}
+	$libs = taxonomy_select_nodes_multiple(array($library_id, $term_id), 'and');
 	
-	if ($lib_obj == NULL) {
+	if (count($libs) == 0) {
 		return xmlrpc_error (3, t('Unable to locate an entry with submitted values.'));
 	}
 	
+	$lib_obj = node_load(array_pop($libs));
 	$lib_xml = simplexml_load_string('<library_hours name="' . check_plain($lib_obj->title) . '"/>');
 	
 	# set today's hours
@@ -477,8 +513,8 @@ function xmls_library_hours_get_hours_block($library_id, $term_id, $date = NULL,
 	}
 	
 	$date_timestamp = strtotime(date('Y-m-d', $date));
-	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and');
-	$lib = db_fetch_object($libs);
+	$libs = taxonomy_select_nodes_multiple(array($library_id, $term_id), 'and');
+	$lib = node_load(array_shift($libs));
 	
 	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = :nid", array(':nid'=>$lib->nid));
 	if (!$result)
@@ -501,13 +537,14 @@ function xmls_library_hours_get_hours_block($library_id, $term_id, $date = NULL,
 				FROM {dateranges} dt WHERE dt.nid = :nid)
 			UNION
 			(SELECT 
-				dt.*, (SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
+				dt.*, 
+				(SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
 				FROM {dateranges} dt 
 				WHERE target='banner' 
 				AND (
 					(DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') BETWEEN startDate and endDate)
 					OR
-					(startDate = endDate AND DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') = endDate)
+					(startDate = endDate AND endDate = DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s'))
 				)
 				AND dt.nid IN (SELECT nid FROM {library_hours_library_notices} ln WHERE ln.tid = $library_id))
 		) t
@@ -591,8 +628,8 @@ function xmls_library_hours_get_holidays($library_id, $term_id) {
 	
 	$holidays = array();
 	
-	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and');
-	$lib = db_fetch_object($libs);
+	$libs = taxonomy_select_nodes_multiple(array($library_id, $term_id), 'and');
+	$lib = node_load(array_shift($libs));
 	
 	if ($lib) {
 		$result = db_query("SELECT label, UNIX_TIMESTAMP(date) as uts FROM {holidays} WHERE nid=:nid ORDER BY date ASC", array(':nid'=>$lib->nid));
@@ -660,8 +697,8 @@ function _determine_library_hours_for_specific_date($library_id, $term_id, $date
 		return FALSE;
 	
 	$date_timestamp = strtotime($date);
-	$libs = taxonomy_select_nodes(array($library_id, $term_id), 'and');
-	$lib = db_fetch_object($libs);
+	$libs = taxonomy_select_nodes_multiple(array($library_id, $term_id), 'and');
+	$lib = node_load(array_shift($libs));
 	
 	$result = db_query("SELECT nid, startDate, endDate FROM  {library_hours} WHERE nid = :nid", array(':nid'=>$lib->nid));
 	if (!$result)
@@ -696,13 +733,14 @@ function _determine_library_hours_for_specific_date($library_id, $term_id, $date
 				FROM {dateranges} dt WHERE dt.nid = :nid)
 			UNION
 			(SELECT 
-				dt.*, (SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
+				dt.*, 
+				(SELECT COUNT(*) FROM timeframes WHERE did = dt.did ORDER BY tid ASC) as tfcount
 				FROM {dateranges} dt 
 				WHERE target='banner' 
 				AND (
 					(DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') BETWEEN startDate and endDate)
 					OR
-					(startDate = endDate AND DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s') = endDate)
+					(startDate = endDate AND endDate = DATE_FORMAT(NOW(), '%%Y-%%m-%%d %%H:%%i:%%s'))
 				)
 				AND dt.nid IN (SELECT nid FROM {library_hours_library_notices} ln WHERE ln.tid = $library_id))
 		) t
@@ -1263,7 +1301,7 @@ function library_hours_listing() {
 
 function _get_vocabulary_term_children($lhTermVocId, $libTermId, $vocTermName, $checkPermission = false) {
 	
-	$nodes = taxonomy_select_nodes(array($libTermId));
+	$nodes = taxonomy_select_nodes($libTermId);
 	
 	$rows = array();
 	foreach ($nodes as $node) {
