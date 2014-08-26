@@ -61,7 +61,8 @@ function library_hours_node_info() {
 }
 
 function library_hours_form_library_hours_node_form_alter(&$form, &$form_state, $form_id) {
-	$type = node_type_get_type( $form['#node']->type );
+	$node = $form['#node'];
+	$type = node_type_get_type( $node->type );
 	
 	$form['title'] = array(
 		'#type' => 'textfield',
