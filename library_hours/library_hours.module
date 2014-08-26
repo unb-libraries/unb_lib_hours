@@ -966,6 +966,9 @@ function library_hours_node_delete( $node ) {
 	if ($node->type == 'banner_notice') {
 		db_query("DELETE FROM {library_hours_library_notices} WHERE nid=:nid", array(':nid'=>$node->nid));
 	}
+	else {
+		db_query("DELETE FROM {library_hours} WHERE nid=:nid", array(':nid'=>$node->nid));
+	}
 }
 
 function library_hours_daterange_listing($form, &$form_state, $node) {
