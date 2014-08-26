@@ -483,7 +483,7 @@ function xmls_library_hours_get_hours_block($library_id, $term_id, $date = NULL,
 	if (!$result)
 		return FALSE;
 	
-	$result_data = db_fetch_object($result);
+	$result_data = $result->fetchObject();
 	$lib_term_start_date_timestamp = strtotime($result_data->startDate);
 	$lib_term_end_date_timestamp = strtotime($result_data->endDate);
 	// date must be between start date and end date
